@@ -39,25 +39,42 @@ PI = np.pi
 CIRCULAR_LIMITS = -PI, PI
 UNBOUNDED_LIMITS = -INF, INF
 DEFAULT_TIME_STEP = 1./240. # seconds
+DEFAULT_ARM_CONF = [0.01200158428400755, -0.5697816014289856, 5.6801487517077476e-05,
+                    -2.8105969429016113, -0.00025768374325707555, 3.0363450050354004, 0.7410701513290405]
+DISABLED_FRANKA_COLLISIONS = {
+    ('panda_link1', 'chassis_link'),
+}
 
-#####################################
+DEFAULT_ARM_CONF = [0.01200158428400755, -0.5697816014289856, 5.6801487517077476e-05,
+                    -2.8105969429016113, -0.00025768374325707555, 3.0363450050354004, 0.7410701513290405]
+CABINET_OPEN_ANGLE = 4 * np.pi / 9 
+DRAWER_OPEN_FRACTION = 0.75
+
+JOINT_LIMITS_BUFFER = 0.1
+
+Camera = namedtuple('Camera', ['body', 'matrix', 'depth'])
+
+KINECT_URDF = 'models/kinect/kinect.urdf'
+
+TABLE_NAME = 'table'
+TABLE_X = 1.16 # meters
+TABLE_Y = 3.53 # meters
+
+COMPUTER_X = 2.40
+
+CONSERVITIVE_LIMITS = False
+MAX_FRANKA_JOINT7 = 1.89 
 
 DRAKE_PATH = 'models/drake/'
 
-# Models
-
-# Robots
 MODEL_DIRECTORY = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, 'models/'))
 ROOMBA_URDF = 'models/turtlebot/roomba.urdf'
 TURTLEBOT_URDF = 'models/turtlebot/turtlebot_holonomic.urdf'
 DRAKE_IIWA_URDF = 'models/drake/iiwa_description/urdf/iiwa14_polytope_collision.urdf'
 WSG_50_URDF = 'models/drake/wsg_50_description/urdf/wsg_50_mesh_visual.urdf' # wsg_50 | wsg_50_mesh_visual | wsg_50_mesh_collision
-#SCHUNK_URDF = 'models/drake/wsg_50_description/sdf/schunk_wsg_50.sdf'
 PANDA_HAND_URDF = "models/franka_description/robots/hand.urdf"
 PANDA_ARM_URDF = "models/franka_description/robots/panda_arm_hand.urdf"
 
-# Pybullet Robots
-#PYBULLET_DIRECTORY = add_data_path()
 KUKA_IIWA_URDF = "kuka_iiwa/model.urdf"
 KUKA_IIWA_GRIPPER_SDF = "kuka_iiwa/kuka_with_gripper.sdf"
 R2D2_URDF = "r2d2.urdf"
@@ -68,25 +85,16 @@ RACECAR_URDF = 'racecar/racecar.urdf' # racecar_differential.urdf
 PR2_GRIPPER = 'pr2_gripper.urdf'
 WSG_GRIPPER = 'gripper/wsg50_one_motor_gripper.sdf' # wsg50_one_motor_gripper | wsg50_one_motor_gripper_new
 
-# Pybullet Objects
 KIVA_SHELF_SDF = "kiva_shelf/model.sdf"
 FLOOR_URDF = 'plane.urdf'
 TABLE_URDF = 'table'
 
-# Objects
 SMALL_BLOCK_URDF = "models/drake/objects/block_for_pick_and_place.urdf"
 BLOCK_URDF = "models/drake/objects/block_for_pick_and_place_mid_size.urdf"
 SINK_URDF = 'models/sink.urdf'
 STOVE_URDF = 'models/stove.urdf'
 
-#####################################
-
-# I/O
-
 SEPARATOR = '\n' + 50*'-' + '\n'
-
-#def inf_generator():
-#    return iter(int, 1)
 
 inf_generator = count
 
@@ -109,8 +117,6 @@ def write(filename, string):
         f.write(string)
 
 def read_pickle(filename):
-    # Can sometimes read pickle3 from python2 by calling twice
-    # Can possibly read pickle2 from python3 by using encoding='latin1'
     with open(filename, 'rb') as f:
         return pickle.load(f)
 
@@ -207,7 +213,6 @@ def load_yaml(path):
         except yaml.YAMLError as exc:
             raise exc
 
-##################################################
 
 BYTES_PER_KILOBYTE = math.pow(2, 10)
 BYTES_PER_GIGABYTE = math.pow(2, 30)
@@ -424,7 +429,7 @@ class WorldSaver(Saver):
 
 # Simulation
 
-CLIENTS = {} # TODO: rename to include locked
+CLIENTS = {0} # TODO: rename to include locked
 CLIENT = 0
 
 def get_client(client=None):
@@ -439,6 +444,7 @@ def set_client(client):
 ModelInfo = namedtuple('URDFInfo', ['name', 'path', 'fixed_base', 'scale'])
 
 INFO_FROM_BODY = {}
+
 
 def get_model_info(body):
     key = (CLIENT, body)
@@ -3799,57 +3805,342 @@ def read_pcd_file(path):
             continue
         return [tuple(map(float, f.readline().split())) for _ in range(num_points)]
 
-# TODO: factor out things that don't depend on pybullet
 
-#####################################
+#************************************************************
+MODELS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'models/')
 
-# https://github.com/kohterai/OBJ-Parser
+VISUAL = True
+if VISUAL:
+    FRANKA_CARTER_PATH = os.path.join(MODELS_PATH, 'panda_arm_hand_on_carter_visual.urdf')
+else:
+    FRANKA_CARTER_PATH = os.path.join(MODELS_PATH, 'panda_arm_hand_on_carter_collision.urdf')
 
-"""
-def readWrl(filename, name='wrlObj', scale=1.0, color='black'):
-    def readOneObj():
-        vl = []
-        while True:
-            line = fl.readline()
-            split = line.split(',')
-            if len(split) != 2:
-                break
-            split = split[0].split()
-            if len(split) == 3:
-                vl.append(np.array([scale*float(x) for x in split]+[1.0]))
-            else:
-                break
-        print '    verts', len(vl),
-        verts = np.vstack(vl).T
-        while line.split()[0] != 'coordIndex':
-            line = fl.readline()
-        line = fl.readline()
-        faces = []
-        while True:
-            line = fl.readline()
-            split = line.split(',')
-            if len(split) > 3:
-                faces.append(np.array([int(x) for x in split[:3]]))
-            else:
-                break
-        print 'faces', len(faces)
-        return Prim(verts, faces, hu.Pose(0,0,0,0), None,
-                    name=name+str(len(prims)))
+BASE_JOINTS = ['x', 'y', 'theta']
+WHEEL_JOINTS = ['left_wheel', 'right_wheel']
 
-    fl = open(filename)
-    assert fl.readline().split()[0] == '#VRML', 'Not VRML file?'
-    prims = []
-    while True:
-        line = fl.readline()
-        if not line: break
-        split = line.split()
-        if not split or split[0] != 'point':
-            continue
+FRANKA_CARTER = 'franka_carter'
+FRANKA_TOOL_LINK = 'right_gripper'  # right_gripper | panda_wrist_end_pt | panda_forearm_end_pt
+TOOL_POSE = unit_pose()
+
+# +z: pointing, +y: left finger
+FINGER_EXTENT = np.array([0.02, 0.01, 0.02]) # 2cm x 1cm x 2cm
+FRANKA_GRIPPER_LINK = 'panda_link7' # panda_link7 | panda_link8 | panda_hand
+
+################################################################################
+
+TOP_GRASP = 'top'
+SIDE_GRASP = 'side' # TODO: allow normal side grasps for cabinets?
+UNDER_GRASP = 'under' # TODO: for franka_carter
+GRASP_TYPES = [
+    TOP_GRASP,
+    SIDE_GRASP,
+]
+APPROACH_DISTANCE = 0.075 # 0.075 | 0.1
+
+################################################################################
+
+NAME_TEMPLATE = '{}{}'
+BLOCK_TEMPLATE = '{}_{}_block'
+
+BLOCK_SIZES = ['small', 'big']
+BLOCK_COLORS = ['red', 'green', 'blue', 'yellow']
+YCB_PATH = os.path.join(MODELS_PATH, 'ycb/')
+# TODO: ycb obj files have 6 vertex coordinates?
+
+CHEEZIT = 'cracker_box'
+SUGAR = 'sugar_box'
+TOMATO_SOUP = 'tomato_soup_can'
+PUDDING = 'pudding_box'
+JELLO = 'gelatin_box'
+SPAM = 'potted_meat_can'
+MUSTARD = 'mustard_bottle'
+BOWL = 'bowl'
+#BANANA = 'banana'
+YCB_OBJECTS = [SPAM, MUSTARD, TOMATO_SOUP, SUGAR, CHEEZIT] # + [BOWL, PUDDING, BANANA]
+BLOCK = 'block'
+
+ECHO_COUNTER = 'echo'
+INDIGO_COUNTER = 'indigo_tmp'
+TOP_DRAWER = 'indigo_drawer_top'
+BOTTOM_DRAWER = 'indigo_drawer_bottom'
+LEFT_DOOR = 'dagger_door_left'
+
+BOWLS = [BOWL]
+POURABLE = [TOMATO_SOUP, MUSTARD] # SUGAR
+COOKABLE = [BOWL]
+
+################################################################################
+
+#KITCHEN_PATH = os.path.join(MODELS_PATH, 'kitchen_description/urdf/kitchen_part_right_gen_stl.urdf')
+#KITCHEN_PATH = os.path.join(MODELS_PATH, 'kitchen_description/urdf/kitchen_part_right_gen_obj.urdf')
+KITCHEN_PATH = os.path.join(MODELS_PATH, 'kitchen_description/urdf/kitchen_part_right_gen_convex.urdf')
+
+SURFACE_BOTTOM = 'bottom'
+SURFACE_TOP = 'top'
+
+LEFT_CABINETS = ['baker', 'chewie_door_left', 'chewie_door_right']
+RIGHT_CABINETS = ['dagger_door_left'] #, 'dagger_door_right', 'indigo_tmp_bottom']
+CABINETS = LEFT_CABINETS + RIGHT_CABINETS
+
+DRAWERS = [
+    #'hitman_drawer_top', #'hitman_drawer_bottom',
+    'indigo_drawer_top', 'indigo_drawer_bottom',
+]
+
+STOVE_LOCATIONS = [
+    #'back_left', 'back_right',
+    #'front_left',
+    'front_right',
+]
+
+STOVE_TEMPLATE = '{}_stove'
+STOVES = [STOVE_TEMPLATE.format(location) for location in STOVE_LOCATIONS]
+
+KNOB_TEMPLATE = '{}_knob'
+KNOBS = [KNOB_TEMPLATE.format(location) for location in STOVE_LOCATIONS]
+
+ENV_SURFACES = [
+    'echo',  # fox is covered by echo
+    'golf',
+    #'range',
+    'table',
+]
+
+COUNTERS = ['hitman_tmp', 'indigo_tmp', 'range']
+OPEN_SURFACES = COUNTERS + STOVES
+
+Surface = namedtuple('Surface', ['link', 'shape', 'joints'])
+
+SURFACE_FROM_NAME = {
+    'baker': Surface('sektion', 'Cube.bottom.004_Cube.028', ['baker_joint']),
+    'chewie_door_left': Surface('sektion', 'Cube.bottom.002_Cube.020', ['chewie_door_left_joint']),
+    'chewie_door_right': Surface('sektion', 'Cube.bottom_Cube.000', ['chewie_door_right_joint']),
+
+    'dagger_door_left': Surface('dagger', 'Cube.bottom.008_Cube.044', ['dagger_door_left_joint']),
+    'dagger_door_right': Surface('dagger', 'Cube.bottom.012_Cube.060', ['dagger_door_right_joint']),
+
+    'hitman_drawer_top': Surface('hitman_drawer_top', 'Cube_Cube.001', ['hitman_drawer_top_joint']),
+    'hitman_drawer_bottom': Surface('hitman_drawer_bottom', 'Cube_Cube.001', ['hitman_drawer_bottom_joint']),
+    'indigo_drawer_top': Surface('indigo_drawer_top', SURFACE_BOTTOM, ['indigo_drawer_top_joint']),
+    'indigo_drawer_bottom': Surface('indigo_drawer_bottom', SURFACE_BOTTOM, ['indigo_drawer_bottom_joint']),
+}
+
+ZED_LEFT_SURFACES = [
+    'dagger_door_left',
+    'indigo_tmp',
+    #'range',
+    'indigo_drawer_top', 'indigo_drawer_bottom',
+] + STOVES
+
+ALL_SURFACES = ZED_LEFT_SURFACES
+KITCHEN_LEFT_PATH = os.path.join(MODELS_PATH, 'kitchen_left')
+CAMERA_TEMPLATE = 'zed_{}'
+LEFT_CAMERA = CAMERA_TEMPLATE.format('left')
+RIGHT_CAMERA = CAMERA_TEMPLATE.format('right')
+CAMERAS = [LEFT_CAMERA, RIGHT_CAMERA]
+
+KINECT_DEPTH = 5.0
+CAMERA_MATRIX = np.array(
+    [[ 532.569,    0.,     320.,   ],
+     [   0.,     532.569,  240.,   ],
+     [   0.,       0.,       1.,   ]])
+
+KITCHEN_FROM_ZED_LEFT = (
+    (1.0600011348724365, 1.529999017715454, 0.5699998736381531),
+    (-0.10374931246042252, 0.9274755120277405, -0.19101102650165558, -0.30420398712158203))
+KITCHEN_FROM_ZED_RIGHT = (
+    (1.0300002098083496, -1.1000001430511475, 0.3399999439716339),
+    (0.7792050242424011, 0.45354312658309937, -0.20711229741573334, -0.3797929286956787))
+CAMERA_POSES = {
+    LEFT_CAMERA: KITCHEN_FROM_ZED_LEFT,
+    RIGHT_CAMERA: KITCHEN_FROM_ZED_RIGHT,
+}
+JOINT_TEMPLATE = '{}_joint'
+
+CABINET_JOINTS = [JOINT_TEMPLATE.format(name) for name in CABINETS]
+DRAWER_JOINTS = [JOINT_TEMPLATE.format(name) for name in DRAWERS]
+ZED_LEFT_JOINTS = [JOINT_TEMPLATE.format(name) for name in ZED_LEFT_SURFACES
+                   if JOINT_TEMPLATE.format(name) in (CABINET_JOINTS + DRAWER_JOINTS)]
+
+ALL_JOINTS = ZED_LEFT_JOINTS
+
+GRASP_LENGTH = 0.
+MAX_GRASP_WIDTH = np.inf
+SIDE_HEIGHT_OFFSET = 0.03
+TOOL_POSE = Pose(euler=Euler(pitch=np.pi/2))
+
+def get_top_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(),
+                   max_width=MAX_GRASP_WIDTH, grasp_length=GRASP_LENGTH):
+    # TODO: rename the box grasps
+    center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
+    reflect_z = Pose(euler=[0, math.pi, 0])
+    translate_z = Pose(point=[0, 0, h / 2 - grasp_length])
+    translate_center = Pose(point=point_from_pose(body_pose)-center)
+    grasps = []
+    if w <= max_width:
+        for i in range(1 + under):
+            rotate_z = Pose(euler=[0, 0, math.pi / 2 + i * math.pi])
+            grasps += [multiply(tool_pose, translate_z, rotate_z,
+                                reflect_z, translate_center, body_pose)]
+    if l <= max_width:
+        for i in range(1 + under):
+            rotate_z = Pose(euler=[0, 0, i * math.pi])
+            grasps += [multiply(tool_pose, translate_z, rotate_z,
+                                reflect_z, translate_center, body_pose)]
+    return grasps
+
+def get_side_grasps(body, under=False, tool_pose=TOOL_POSE, body_pose=unit_pose(),
+                    max_width=MAX_GRASP_WIDTH, grasp_length=GRASP_LENGTH, top_offset=SIDE_HEIGHT_OFFSET):
+    # TODO: compute bounding box width wrt tool frame
+    center, (w, l, h) = approximate_as_prism(body, body_pose=body_pose)
+    translate_center = Pose(point=point_from_pose(body_pose)-center)
+    grasps = []
+    #x_offset = 0
+    x_offset = h/2 - top_offset
+    for j in range(1 + under):
+        swap_xz = Pose(euler=[0, -math.pi / 2 + j * math.pi, 0])
+        if w <= max_width:
+            translate_z = Pose(point=[x_offset, 0, l / 2 - grasp_length])
+            for i in range(2):
+                rotate_z = Pose(euler=[math.pi / 2 + i * math.pi, 0, 0])
+                grasps += [multiply(tool_pose, translate_z, rotate_z, swap_xz,
+                                    translate_center, body_pose)]  # , np.array([w])
+        if l <= max_width:
+            translate_z = Pose(point=[x_offset, 0, w / 2 - grasp_length])
+            for i in range(2):
+                rotate_z = Pose(euler=[i * math.pi, 0, 0])
+                grasps += [multiply(tool_pose, translate_z, rotate_z, swap_xz,
+                                    translate_center, body_pose)]  # , np.array([l])
+    return grasps
+
+def close_until_collision(robot, gripper_joints, bodies=[], open_conf=None, closed_conf=None, num_steps=25, **kwargs):
+    if not gripper_joints:
+        return None
+    if open_conf is None:
+        open_conf = [get_max_limit(robot, joint) for joint in gripper_joints]
+    if closed_conf is None:
+        closed_conf = [get_min_limit(robot, joint) for joint in gripper_joints]
+    resolutions = np.abs(np.array(open_conf) - np.array(closed_conf)) / num_steps
+    extend_fn = get_extend_fn(robot, gripper_joints, resolutions=resolutions)
+    close_path = [open_conf] + list(extend_fn(open_conf, closed_conf))
+    collision_links = frozenset(get_moving_links(robot, gripper_joints))
+
+    for i, conf in enumerate(close_path):
+        set_joint_positions(robot, gripper_joints, conf)
+        if any(pairwise_collision((robot, collision_links), body, **kwargs) for body in bodies):
+            if i == 0:
+                return None
+            return close_path[i-1][0]
+    return close_path[-1][0]
+
+def get_tool_from_root(robot):
+    root_link = link_from_name(robot, get_gripper_link(robot))
+    tool_link = link_from_name(robot, get_tool_link(robot))
+    return multiply(invert(get_link_pose(robot, tool_link)),
+                    get_link_pose(robot, root_link))
+
+def set_tool_pose(world, tool_pose):
+    root_from_urdf = unit_pose()
+    tool_from_root = get_tool_from_root(world.robot)
+    set_pose(world.gripper, multiply(tool_pose, tool_from_root, root_from_urdf))
+
+def iterate_approach_path(world, pose, grasp, body=None):
+    world_from_body = pose.get_world_from_body()
+    grasp_pose = multiply(world_from_body, invert(grasp.grasp_pose))
+    approach_pose = multiply(world_from_body, invert(grasp.pregrasp_pose))
+    for tool_pose in interpolate_poses(grasp_pose, approach_pose):
+        set_tool_pose(world, tool_pose)
+        if body is not None:
+            set_pose(body, multiply(tool_pose, grasp.grasp_pose))
+        yield
+
+def get_gripper_link(robot):
+    robot_name = get_body_name(robot)
+    if robot_name == FRANKA_CARTER:
+        return FRANKA_GRIPPER_LINK
+    raise ValueError(robot_name)
+
+def get_tool_link(robot):
+    robot_name = get_body_name(robot)
+    if robot_name == FRANKA_CARTER:
+        return FRANKA_TOOL_LINK
+    raise ValueError(robot_name)
+
+def create_gripper(robot, visual=False):
+    gripper_link = link_from_name(robot, get_gripper_link(robot))
+    links = get_link_descendants(robot, gripper_link) 
+    # with LockRenderer():
+    gripper = clone_body(robot, links=links, visual=False, collision=True)  # TODO: joint limits
+    if not visual:
+        for link in get_all_links(gripper):
+            set_color(gripper, np.zeros(4), link)
+
+    return gripper
+
+class Conf(object):
+    def __init__(self, body, joints, values=None, init=False):
+        self.body = body
+        self.joints = joints
+        if values is None:
+            values = get_joint_positions(self.body, self.joints)
+        self.values = tuple(values)
+        self.init = init
+    @property
+    def bodies(self): # TODO: misnomer
+        return flatten_links(self.body, get_moving_links(self.body, self.joints))
+    def assign(self):
+        set_joint_positions(self.body, self.joints, self.values)
+    def iterate(self):
+        yield self
+    def __repr__(self):
+        return 'q{}'.format(id(self) % 1000)
+
+class FConf(Conf):
+    def __repr__(self):
+        if len(self.joints) == 2:
+            prefix = 'dq'
+        elif len(self.joints) == 2:
+            prefix = 'gq'
+        elif len(self.joints) == 3:
+            prefix = 'bq'
+        elif len(self.joints) == 7:
+            prefix = 'aq'
         else:
-            print 'Object', len(prims)
-            prims.append(readOneObj())
-    # Have one "part" so that shadows are simpler
-    part = Shape(prims, None, name=name+'_part')
-    # Keep color only in top entry.
-    return Shape([part], None, name=name, color=color)
-"""
+            prefix = 'q'
+        return '{}{}'.format(prefix, id(self) % 1000)
+
+
+def custom_limits_from_base_limits(robot, base_limits, yaw_limit=None):
+    x_limits, y_limits = zip(*base_limits)
+    custom_limits = {
+        joint_from_name(robot, 'x'): x_limits,
+        joint_from_name(robot, 'y'): y_limits,
+    }
+    if yaw_limit is not None:
+        custom_limits.update({
+            joint_from_name(robot, 'theta'): yaw_limit,
+        })
+    return custom_limits
+
+def get_descendant_obstacles(body, link=BASE_LINK):
+    # TODO: deprecate?
+    return {(body, frozenset([link]))
+            for link in get_link_subtree(body, link)}
+
+def are_confs_close(conf1, conf2, tol=1e-8):
+    assert (conf1.body == conf2.body) and (conf1.joints == conf2.joints)
+    difference_fn = get_difference_fn(conf1.body, conf1.joints)
+    difference = difference_fn(conf1.values, conf2.values)
+    return np.allclose(difference, np.zeros(len(conf1.joints)), rtol=0., atol=tol)
+
+
+def translate_linearly(world, distance):
+    # TODO: could just apply in the base frame
+    x, y, theta = get_joint_positions(world.robot, world.base_joints)
+    pos = np.array([x, y])
+    goal_pos = pos + distance * unit_from_theta(theta)
+    goal_pose = np.append(goal_pos, [theta])
+    return goal_pose
+
+
+##################################################
