@@ -9,8 +9,8 @@ import time
 import pybullet  as p
 import pybullet_data
 import utils as ut
+import ikfast.franka_panda.ik as fik
 
-USE_TRACK_IK = False
 
 class World:
 	def __init__(self):
@@ -28,6 +28,7 @@ class World:
 		ut.set_point(self.floor, point)
 
 		franka_path = 'panda_arm_hand_on_carter_visual.urdf'
+
 		self.robot_name = "franka_carter"
 		with ut.HideOutput(enable=True):
 			self.robot = p.loadURDF(franka_path, (2,2,0))
@@ -49,7 +50,7 @@ class World:
 		self.base_limits_handles = []
 		self.cameras = {}
 
-		self.doors = {
+		self.door_ids = {
 						'chewie_door_right':18,
 						'chewie_door_left':22,
 						'dagger_door_left':27,
@@ -83,8 +84,53 @@ class World:
 								   for joint in self.kitchen_joints}
 		self.closed_kitchen_confs = {joint: ut.FConf(self.kitchen, [joint], [self.closed_conf(joint)])
 									 for joint in self.kitchen_joints}
-		self._update_custom_limits()
-		self._update_initial()
+		# print(self.arm_joints)
+		print(self.tool_link)#23
+		print(self.gripper_link)#20
+		print(self.franka_link)#11
+		# self._update_custom_limits()
+		# self._update_initial()
+		self.ik_test()
+		# jointPositions = [3.559609, 0.411182, 0.862129, 1.744441, 0.077299, -1.129685, 0.006001]
+		# print('joints: ',p.getNumJoints(self.robot))
+		# for jointIndex in range(len(self.arm_joints)):
+		# 	time.sleep(2)
+		# 	p.resetJointState(self.robot, self.arm_joints[jointIndex], jointPositions[jointIndex])
+
+	def open_door_with_name(self, name):
+		index = self.door_ids[name]
+		self.open_door(index)
+
+
+	def close_door_with_name(self, name):
+		index = self.door_ids[name]
+		self.close_door(index)
+
+
+	def ik_test(self):
+		t=0
+		# jointangles = self.solve_inverse_kinematics([[2,2,1], p.getQuaternionFromEuler([0, -np.pi, 0])])
+		
+		while 1:
+			t += 0.001
+			pos = [2+0.8, 0.2 * np.cos(t)+2, 0. + 0.2 * np.sin(t) + 1.3]
+			orn = p.getQuaternionFromEuler([0, -np.pi, 0])
+			pos = [2,2,1.3]
+			pp = (pos,orn)
+			
+			# print('franka id: ',self.franka_link)
+			# print('ee id: ',self.gripper_link)
+			jointangles = self.solve_inverse_kinematics(pp)
+			print(jointangles)
+
+			# for i in range(len(self.arm_joints)):
+			# 	p.resetJointState(self.robot, self.arm_joints[i], jointangles[i])
+
+
+
+		print('DONE!!!!')
+
+
 
 
 	def _initialize_environment(self):
@@ -221,7 +267,7 @@ class World:
 
 	@property
 	def tool_link(self):
-		return ut.link_from_name(self.robot, get_tool_link(self.robot))
+		return ut.link_from_name(self.robot, ut.get_tool_link(self.robot))
 
 	@property
 	def world_link(self): # for kitchen
@@ -258,6 +304,7 @@ class World:
 
 	def get_door_sign(self, joint):
 		return -1 if 'left' in ut.get_joint_name(self.kitchen, joint) else +1
+	
 	def closed_conf(self, joint):
 		lower, upper = ut.get_joint_limits(self.kitchen, joint)
 		if 'drawer' in ut.get_joint_name(self.kitchen, joint):
@@ -266,6 +313,7 @@ class World:
 		if 'left' in ut.get_joint_name(self.kitchen, joint):
 			return upper
 		return lower
+	
 	def open_conf(self, joint):
 		joint_name = ut.get_joint_name(self.kitchen, joint)
 		if 'left' in joint_name:
@@ -282,11 +330,27 @@ class World:
 		if joint_name in ut.DRAWER_JOINTS:
 			return ut.DRAWER_OPEN_FRACTION * open_position
 		return open_position
+	
 	def close_door(self, joint):
 		ut.set_joint_position(self.kitchen, joint, self.closed_conf(joint))
+	
 	def open_door(self, joint):
 		ut.set_joint_position(self.kitchen, joint, self.open_conf(joint))
 
+	def solve_inverse_kinematics(self, world_from_tool, nearby_tolerance=np.inf, **kwargs):
+		current_conf = ut.get_joint_positions(self.robot, self.arm_joints)
+		start_time = time.time()
+		generator = fik.ikfast_inverse_kinematics(self.robot, fik.PANDA_INFO, self.tool_link, world_from_tool,
+												  max_attempts=10, use_halton=True)
+		conf = next(generator, None)
+		#conf = sample_tool_ik(self.robot, world_from_tool, max_attempts=100)
+		if conf is None:
+			return conf
+		max_distance = ut.get_distance(current_conf, conf, norm=np.inf)
+		#print('Time: {:.3f} | distance: {:.5f} | max: {:.5f}'.format(
+		#    elapsed_time(start_time), max_distance, nearby_tolerance))
+		ut.set_joint_positions(self.robot, self.arm_joints, conf)
+		return ut.get_configuration(self.robot)
 
 
 
@@ -295,15 +359,15 @@ if __name__ == '__main__':
 	w = World()
 	# for i in range(p.getNumJoints(w.kitchen)):
 	# 	print(p.getJointInfo(w.kitchen,i))
-	while True:
-		w.open_gripper()
-		for i in w.doors.values():
-			w.open_door(i)
-		time.sleep(2)
-		w.close_gripper()
-		for i in w.doors.values():
-			w.close_door(i)
-		time.sleep(2)
+	# while True:
+	# 	w.open_gripper()
+	# 	for i in w.doors.values():
+	# 		w.open_door(i)
+	# 	time.sleep(2)
+	# 	w.close_gripper()
+	# 	for i in w.doors.values():
+	# 		w.close_door(i)
+	# 	time.sleep(2)
 	time.sleep(100)
 
 
