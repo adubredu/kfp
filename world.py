@@ -320,12 +320,7 @@ class World:
 			open_position = ut.get_min_limit(self.kitchen, joint)
 		else:
 			open_position = ut.get_max_limit(self.kitchen, joint)
-		#print(get_joint_name(self.kitchen, joint), get_min_limit(self.kitchen, joint), get_max_limit(self.kitchen, joint))
-		# drawers: [0.0, 0.4]
-		# left doors: [-1.57, 0.0]
-		# right doors: [0.0, 1.57]
 		if joint_name in ut.CABINET_JOINTS:
-			# TODO: could make fraction of max
 			return ut.CABINET_OPEN_ANGLE * open_position / abs(open_position)
 		if joint_name in ut.DRAWER_JOINTS:
 			return ut.DRAWER_OPEN_FRACTION * open_position

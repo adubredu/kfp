@@ -38,17 +38,37 @@ class Morpheus:
 		cid = p.createConstraint(self.husky, 8, self.panda, -1, p.JOINT_FIXED, [0, 0, 0], [0, 0, 0], [0., 0., -.5],
 		                         [0, 0, 0, 1])
 		self.panda_end_effector = 11
+		self.panda_fingers_index = [9,10]
+		self.panda_fingers_limits= [0.0, 0.04]
 		self.num_joints = 7
 		self.wheels = [2, 3, 4, 5]
 		self.linear_speed = 3.0
 		self.turn_speed = 0.5
-		self.at_cabinet_pose = ((-2.1500243687136127, 1.092980084593978, -1.4781747553214735), 
-			(5.966205995056604e-05, 0.0009687922557074192, 0.7333478024202129, 0.6798529683449563))
+		self.door_indices = {
+						'chewie_door_right':18,
+						'chewie_door_left':22,
+						'dagger_door_left':27,
+						'dagger_door_right':31,
+						'hitman_drawer_top':37,
+						'hitman_drawer_bottom':40,
+						'indigo_door_right':48,
+						'indigo_door_left':53,
+						'indigo_drawer_top':56,
+						'indigo_drawer_bottom':58,
+						'baker':14
+		}
+		# for i in range(p.getNumJoints(self.panda)):
+		# 	print(p.getJointInfo(self.panda,i))
+		self.run_gripper_test()
+		self.set_gripper_to(0.02)
+		# self.at_cabinet_pose = ((-2.1500243687136127, 1.092980084593978, -1.4781747553214735), 
+		# 	(5.966205995056604e-05, 0.0009687922557074192, 0.7333478024202129, 0.6798529683449563))
 		# self.move_base_to_position(2,-3,1.57)
 		# self.run_draw_circle_test()
-		self.move_base_to_position(self.at_cabinet_pose[0][0],self.at_cabinet_pose[0][1],
-							1.57)
+		# self.move_base_to_position(self.at_cabinet_pose[0][0],self.at_cabinet_pose[0][1],
+		# 					1.57)
 		time.sleep(30)
+
 
 
 	def calculate_inverse_kinematics(self, targetPos, threshold, maxIter):
@@ -67,6 +87,21 @@ class Morpheus:
 			iter = iter + 1
 
 		return jointPoses
+
+
+	def open_gripper(self):
+		p.resetJointState(self.panda, self.panda_fingers_index[0],self.panda_fingers_limits[0])
+		p.resetJointState(self.panda, self.panda_fingers_index[1],self.panda_fingers_limits[0])
+
+
+	def close_gripper(self):
+		p.resetJointState(self.panda, self.panda_fingers_index[0],self.panda_fingers_limits[1])
+		p.resetJointState(self.panda, self.panda_fingers_index[1],self.panda_fingers_limits[1])
+
+
+	def set_gripper_to(self,value):
+		p.resetJointState(self.panda, self.panda_fingers_index[0],value)
+		p.resetJointState(self.panda, self.panda_fingers_index[1],value)
 
 
 	def orient_base_to_yaw(self, theta, tolerance=0.1):
@@ -153,6 +188,70 @@ class Morpheus:
 		self.orient_base_to_yaw(theta)
 
 
+
+	def open_conf(self, joint):
+		joint_name = ut.get_joint_name(self.kitchen, joint)
+		if 'left' in joint_name:
+			open_position = ut.get_min_limit(self.kitchen, joint)
+		else:
+			open_position = ut.get_max_limit(self.kitchen, joint)
+		if joint_name in ut.CABINET_JOINTS:
+			return ut.CABINET_OPEN_ANGLE * open_position / abs(open_position)
+		if joint_name in ut.DRAWER_JOINTS:
+			return ut.DRAWER_OPEN_FRACTION * open_position
+		return open_position
+
+
+	def closed_conf(self, joint):
+		lower, upper = ut.get_joint_limits(self.kitchen, joint)
+		if 'drawer' in ut.get_joint_name(self.kitchen, joint):
+			fraction = 0.9
+			return fraction*lower + (1-fraction)*upper
+		if 'left' in ut.get_joint_name(self.kitchen, joint):
+			return upper
+		return lower
+
+
+	def open_door(self, name):
+		index = self.door_indices[name]
+		ut.set_joint_position(self.kitchen, index, self.open_conf(index))
+
+
+	def close_door(self, name):
+		index = self.door_indices[name]
+		ut.set_joint_position(self.kitchen, index, self.closed_conf(index))
+
+
+	def run_open_doors_test(self):
+		for key in self.door_indices:
+			self.open_door(key)
+		time.sleep(5)
+
+		for key in self.door_indices:
+			self.close_door(key)
+		time.sleep(30)
+
+
+	def run_gripper_test(self):
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
 
 	def run_draw_circle_test(self):
 		t = 0.
