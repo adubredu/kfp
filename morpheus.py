@@ -44,7 +44,12 @@ class Morpheus:
 		self.wheels = [2, 3, 4, 5]
 		self.linear_speed = 3.0
 		self.turn_speed = 0.5
-		self.cabinet_arm_level = [0.1409231286057612, 1.832642093218182, 0.7677297555068837, -0.18070330047607316, 1.891428579174329, 3.4065983084988964, -1.3653107833792941]
+
+		self.cabinet_level_arm_joints = [-0.24461591796341872, 1.8326906239523932, 1.0252070138877254, -0.5239713248274498, 0.4023144588912911, 3.2991299388671016, -2.473336920542287]
+		self.cabinet_base_pose = ((-1.8344467611603905, 1.278244939525756, -1.4779630416620502), (-6.607301115627301e-05, -0.0005684732387852879, 0.9998342462045083, -0.018197598445852517))
+		# self.cabinet_base_pose = ((-1.8679399271350583, 1.4377696730622895, -1.4780430922122536), (-0.0006939769813346077, -0.0004433044630945052, 0.9920195490620412, -0.12608146634556158))
+		self.top_drawer_handle_pose = (-2.6927336461012272, 1.30421326081128, -0.6286695384338337)
+		
 		self.door_indices = {
 						'chewie_door_right':18,
 						'chewie_door_left':22,
@@ -58,7 +63,8 @@ class Morpheus:
 						'indigo_drawer_bottom':58,
 						'baker':14
 		}
-		self.arm_teleop()
+		self.run_open_drawer_test()
+		# self.arm_teleop()
 		# for i in range(p.getNumJoints(self.panda)):
 		# 	print(p.getJointInfo(self.panda,i))
 		# self.move_arm_to_cabinet_level()
@@ -197,6 +203,10 @@ class Morpheus:
 		self.drive_base_for_distance(distance)
 		time.sleep(1)
 		self.orient_base_to_yaw(theta)
+		
+		init_pos, orientation = p.getBasePositionAndOrientation(self.husky)
+		distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		self.drive_base_for_distance(distance)
 
 
 
@@ -371,6 +381,21 @@ class Morpheus:
 			print('BASE POSE AND ORIENTATION: ',pose)
 			eepose = p.getLinkState(self.panda, self.panda_end_effector)
 			print('WORLD END-EFFECTOR POSE: ',eepose[0])
+			print('&'*30)
+			print(' ')
+
+
+	def run_open_drawer_test(self):
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(self.cabinet_base_pose[1])[2]
+		self.move_base_to_position(self.cabinet_base_pose[0][0],
+			self.cabinet_base_pose[0][1],theta)
+		time.sleep(1)
+		joints = [0,1,2,3,4,5,6]
+		p.setJointMotorControlArray(self.panda, joints, controlMode=p.POSITION_CONTROL,
+									targetPositions=self.cabinet_level_arm_joints)
+		self.close_gripper()
+		p.stepSimulation()
 
 
 
