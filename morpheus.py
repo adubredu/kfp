@@ -41,9 +41,13 @@ class Morpheus:
 		self.num_joints = 7
 		self.wheels = [2, 3, 4, 5]
 		self.linear_speed = 3.0
-		self.turn_speed = 1.0
-
-		self.move_base_to_position(2,-3,1.57)
+		self.turn_speed = 0.5
+		self.at_cabinet_pose = ((-2.1500243687136127, 1.092980084593978, -1.4781747553214735), 
+			(5.966205995056604e-05, 0.0009687922557074192, 0.7333478024202129, 0.6798529683449563))
+		# self.move_base_to_position(2,-3,1.57)
+		# self.run_draw_circle_test()
+		self.move_base_to_position(self.at_cabinet_pose[0][0],self.at_cabinet_pose[0][1],
+							1.57)
 		time.sleep(30)
 
 
@@ -90,10 +94,18 @@ class Morpheus:
 			                            p.VELOCITY_CONTROL,
 			                            targetVelocity=wheelVelocities[i],
 			                            force=1000)
-
+			time.sleep(1)
 			pose, orientation = p.getBasePositionAndOrientation(self.husky)
 			yaw = p.getEulerFromQuaternion(orientation)[2]
-			print(yaw)
+			print('turning: ',yaw)
+		print('done yawing')
+		for i in range(len(self.wheels)):
+			    p.setJointMotorControl2(self.husky,
+			                            self.wheels[i],
+			                            p.VELOCITY_CONTROL,
+			                            targetVelocity=0.0,
+			                            force=1000)
+		
 
 
 	def drive_base_for_distance(self, goal_distance, tolerance=0.1):
@@ -120,15 +132,24 @@ class Morpheus:
 
 			pose, orientation = p.getBasePositionAndOrientation(self.husky)
 			dist_covered = np.sqrt((init_pos[0]-pose[0])**2 + (init_pos[1]-pose[1])**2)
-			print(dist_covered)
+			print('linear: ',dist_covered)
+		print('done translating')
+		for i in range(len(self.wheels)):
+			    p.setJointMotorControl2(self.husky,
+			                            self.wheels[i],
+			                            p.VELOCITY_CONTROL,
+			                            targetVelocity=0.0,
+			                            force=1000)
 
 
 	def move_base_to_position(self, gx, gy, theta):
 		init_pos, orientation = p.getBasePositionAndOrientation(self.husky)
 		direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
 		self.orient_base_to_yaw(direction)
+		time.sleep(1)
 		distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
 		self.drive_base_for_distance(distance)
+		time.sleep(1)
 		self.orient_base_to_yaw(theta)
 
 
@@ -191,18 +212,19 @@ class Morpheus:
 			orn = p.getQuaternionFromEuler([0, -math.pi, 0])
 			threshold = 0.001
 			maxIter = 100
-			jointPoses = self.calculate_inverse_kinematics(pos, threshold, maxIter)
+			# jointPoses = self.calculate_inverse_kinematics(pos, threshold, maxIter)
 
-			for i in range(self.num_joints):
-				p.resetJointState(self.panda, i, jointPoses[i])
-			ls = p.getLinkState(self.panda, self.panda_end_effector)
-			if (hasPrevPose):
-				p.addUserDebugLine(prevPose, pos, [0, 0, 0.3], 1, trailDuration)
-				p.addUserDebugLine(prevPose1, ls[4], [1, 0, 0], 1, trailDuration)
-			prevPose = pos
-			prevPose1 = ls[4]
-			hasPrevPose = 1
-			self.orient_base_to_yaw(1)
+			# for i in range(self.num_joints):
+			# 	p.resetJointState(self.panda, i, jointPoses[i])
+			# ls = p.getLinkState(self.panda, self.panda_end_effector)
+			# if (hasPrevPose):
+			# 	p.addUserDebugLine(prevPose, pos, [0, 0, 0.3], 1, trailDuration)
+			# 	p.addUserDebugLine(prevPose1, ls[4], [1, 0, 0], 1, trailDuration)
+			# prevPose = pos
+			# prevPose1 = ls[4]
+			# hasPrevPose = 1
+			print(p.getBasePositionAndOrientation(self.husky))
+			# self.orient_base_to_yaw(1)
 
 
 	def run_move_square_test(self):
