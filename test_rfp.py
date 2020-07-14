@@ -41,8 +41,8 @@ ob = kukaId
 # jointPositions = [3.559609, 0.411182, 0.862129, 1.744441, 0.077299, -1.129685, 0.006001]
 # for jointIndex in range(7):
 #   p.resetJointState(ob, jointIndex, jointPositions[jointIndex])
-for i in range(p.getNumJoints(husky)):
-  print(p.getJointInfo(husky, i))
+for i in range(p.getNumJoints(kukaId)):
+  print(p.getJointInfo(kukaId, i))
 # #put kuka on top of husky
 
 cid = p.createConstraint(husky, 8, kukaId, -1, p.JOINT_FIXED, [0, 0, 0], [0, 0, 0], [0., 0., -.5],
@@ -168,7 +168,7 @@ while 1:
 
   for i in range(1):
     #pos = [-0.4,0.2*math.cos(t),0.+0.2*math.sin(t)]
-    pos = [0.2 * math.cos(t), 0, 0. + 0.2 * math.sin(t) + 0.]
+    pos = [0.2 * math.cos(t), 0, 0. + 0.2 * math.sin(t) + -0.3]
     #end effector points down, not up (in case useOrientation==1)
     orn = p.getQuaternionFromEuler([0, -math.pi, 0])
 
@@ -211,6 +211,10 @@ while 1:
       #reset the joint state (ignoring all dynamics, not recommended to use during simulation)
       for i in range(numJoints):
         p.resetJointState(kukaId, i, jointPoses[i])
+
+    print('*'*20)
+    print('JOINTS: ')
+    print(p.getJointStates(kukaId, [0,1,2,3,4,5,6,7,8,9,10,11]))
 
   ls = p.getLinkState(kukaId, kukaEndEffectorIndex)
   if (hasPrevPose):

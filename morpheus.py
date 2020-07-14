@@ -44,6 +44,7 @@ class Morpheus:
 		self.wheels = [2, 3, 4, 5]
 		self.linear_speed = 3.0
 		self.turn_speed = 0.5
+		self.cabinet_arm_level = [0.1409231286057612, 1.832642093218182, 0.7677297555068837, -0.18070330047607316, 1.891428579174329, 3.4065983084988964, -1.3653107833792941]
 		self.door_indices = {
 						'chewie_door_right':18,
 						'chewie_door_left':22,
@@ -57,10 +58,12 @@ class Morpheus:
 						'indigo_drawer_bottom':58,
 						'baker':14
 		}
+		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.panda)):
 		# 	print(p.getJointInfo(self.panda,i))
-		self.run_gripper_test()
-		self.set_gripper_to(0.02)
+		# self.move_arm_to_cabinet_level()
+		# self.run_gripper_test()
+		# self.set_gripper_to(0.02)
 		# self.at_cabinet_pose = ((-2.1500243687136127, 1.092980084593978, -1.4781747553214735), 
 		# 	(5.966205995056604e-05, 0.0009687922557074192, 0.7333478024202129, 0.6798529683449563))
 		# self.move_base_to_position(2,-3,1.57)
@@ -89,20 +92,28 @@ class Morpheus:
 		return jointPoses
 
 
+	def move_arm_to_cabinet_level(self):
+		joints = [0,1,2,3,4,5,6]
+		p.setJointMotorControlArray(self.panda, joints, controlMode=p.POSITION_CONTROL,
+									targetPositions=self.cabinet_arm_level)
+		p.stepSimulation()
+
+
 	def open_gripper(self):
-		p.resetJointState(self.panda, self.panda_fingers_index[0],self.panda_fingers_limits[0])
-		p.resetJointState(self.panda, self.panda_fingers_index[1],self.panda_fingers_limits[0])
+		p.setJointMotorControl2(self.panda, self.panda_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[0])
+		p.setJointMotorControl2(self.panda, self.panda_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[0])
+		p.stepSimulation()
 
 
 	def close_gripper(self):
-		p.resetJointState(self.panda, self.panda_fingers_index[0],self.panda_fingers_limits[1])
-		p.resetJointState(self.panda, self.panda_fingers_index[1],self.panda_fingers_limits[1])
-
+		p.setJointMotorControl2(self.panda, self.panda_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[1])
+		p.setJointMotorControl2(self.panda, self.panda_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[1])
+		p.stepSimulation()
 
 	def set_gripper_to(self,value):
-		p.resetJointState(self.panda, self.panda_fingers_index[0],value)
-		p.resetJointState(self.panda, self.panda_fingers_index[1],value)
-
+		p.setJointMotorControl2(self.panda, self.panda_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=value)
+		p.setJointMotorControl2(self.panda, self.panda_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=value)
+		p.stepSimulation()
 
 	def orient_base_to_yaw(self, theta, tolerance=0.1):
 		pose, orientation = p.getBasePositionAndOrientation(self.husky)
@@ -222,6 +233,149 @@ class Morpheus:
 		ut.set_joint_position(self.kitchen, index, self.closed_conf(index))
 
 
+	def control_joint(self, joint, value, minn, maxx):
+		if value < minn:
+			value = minn
+		if value > maxx:
+			value = maxx
+		p.setJointMotorControl2(self.panda, joint,
+					controlMode=p.POSITION_CONTROL,targetPosition=value)
+		p.stepSimulation()
+
+
+	def arm_teleop(self):
+		joint_limits={
+						0: (-2.9671, 2.9671),
+						1: (-1.8326, 1.8326),
+						2: (-2.9671, 2.9671),
+						3: (-3.1416, 0.0),
+						4: (-2.9671, 2.9671),
+						5: (-0.0873, 3.8223),
+						6: (-2.9671, 2.9671),
+						7: (0.0, -1.0,)
+					}
+		wheels = [2, 3, 4, 5]
+		wheelVelocities = [0, 0, 0, 0]
+		wheelDeltasTurn = [1, -1, 1, -1]
+		wheelDeltasFwd = [1, 1, 1, 1]
+
+		while 1:
+			wheelVelocities = [0, 0, 0, 0]
+			keys = p.getKeyboardEvents()
+			if ord('q') in keys:
+				ji = 0
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('w') in keys:
+				ji = 0
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('a') in keys:
+				ji = 1
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('s') in keys:
+				ji = 1
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('z') in keys:
+				ji = 2
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('x') in keys:
+				ji = 2
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('e') in keys:
+				ji = 3
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('r') in keys:
+				ji = 3
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('d') in keys:
+				ji = 4
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('f') in keys:
+				ji = 4
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('c') in keys:
+				ji = 5
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('v') in keys:
+				ji = 5
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('t') in keys:
+				ji = 6
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('y') in keys:
+				ji = 6
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('g') in keys:
+				ji = 7
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('h') in keys:
+				ji = 7
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if p.B3G_LEFT_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasTurn[i]
+			if p.B3G_RIGHT_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasTurn[i]
+			if p.B3G_UP_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasFwd[i]
+			if p.B3G_DOWN_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasFwd[i]
+
+			for i in range(len(wheels)):
+				p.setJointMotorControl2(self.husky,
+			                        wheels[i],
+			                        p.VELOCITY_CONTROL,
+			                        targetVelocity=wheelVelocities[i],
+			                        force=1000)
+			# p.stepSimulation()
+
+			joint_angles=[]
+			for i in joint_limits:
+				joint_angles.append(p.getJointState(self.panda,i)[0])
+			print('JOINT ANGLES ARE: ',joint_angles)
+			pose = p.getBasePositionAndOrientation(self.husky)
+			print('BASE POSE AND ORIENTATION: ',pose)
+			eepose = p.getLinkState(self.panda, self.panda_end_effector)
+			print('WORLD END-EFFECTOR POSE: ',eepose[0])
+
+
+
+
+
 	def run_open_doors_test(self):
 		for key in self.door_indices:
 			self.open_door(key)
@@ -301,6 +455,7 @@ class Morpheus:
 			                        p.VELOCITY_CONTROL,
 			                        targetVelocity=wheelVelocities[i],
 			                        force=1000)
+
 
 			if (useRealTimeSimulation):
 				t = time.time()
