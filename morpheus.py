@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'
 import utils as ut
 
 clid = p.connect(p.GUI)
-p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
+# p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 p.setGravity(0, 0, -9.81)
 p.setAdditionalSearchPath('models')
 p.setRealTimeSimulation(1)
@@ -45,11 +45,9 @@ class Morpheus:
 		self.linear_speed = 3.0
 		self.turn_speed = 0.5
 
-		self.cabinet_level_arm_joints = [-0.24461591796341872, 1.8326906239523932, 1.0252070138877254, -0.5239713248274498, 0.4023144588912911, 3.2991299388671016, -2.473336920542287]
-		self.cabinet_base_pose = ((-1.8344467611603905, 1.278244939525756, -1.4779630416620502), (-6.607301115627301e-05, -0.0005684732387852879, 0.9998342462045083, -0.018197598445852517))
-		# self.cabinet_base_pose = ((-1.8679399271350583, 1.4377696730622895, -1.4780430922122536), (-0.0006939769813346077, -0.0004433044630945052, 0.9920195490620412, -0.12608146634556158))
-		self.top_drawer_handle_pose = (-2.6927336461012272, 1.30421326081128, -0.6286695384338337)
-		
+		self.cabinet_level_arm_joints = [0.11303627351105561, 1.7194943220174232, 0.004610986775859532, -0.35555030977842883, -1.9527160082703017, 2.995056478815023, 1.6548123762061726]
+		self.cabinet_base_pose = ((-1.870035902802267, 1.4581147943665136, -1.4776955716029512), (-0.00019330860728466418, 0.00025927680860549996, 0.998695377102498, -0.051063090010477596))
+		self.top_drawer_handle_close_pose =  [[-2.700021551986831, 1.2222981416726535, -0.61743105716402], [-0.48237835221694003, 0.6950004414191295, 0.2741104699837661, -0.4573280682234183]]
 		self.door_indices = {
 						'chewie_door_right':18,
 						'chewie_door_left':22,
@@ -80,12 +78,12 @@ class Morpheus:
 
 
 
-	def calculate_inverse_kinematics(self, targetPos, threshold, maxIter):
+	def calculate_inverse_kinematics(self, targetPos,targetOr, threshold, maxIter):
 		closeEnough = False
 		iter = 0
 		dist2 = 1e30
 		while (not closeEnough and iter < maxIter):
-			jointPoses = p.calculateInverseKinematics(self.panda, self.panda_end_effector, targetPos)
+			jointPoses = p.calculateInverseKinematics(self.panda, self.panda_end_effector, targetPos,targetOr)
 			for i in range(self.num_joints):
 				p.resetJointState(self.panda, i, jointPoses[i])
 			ls = p.getLinkState(self.panda, self.panda_end_effector)
@@ -105,13 +103,13 @@ class Morpheus:
 		p.stepSimulation()
 
 
-	def open_gripper(self):
+	def close_gripper(self):
 		p.setJointMotorControl2(self.panda, self.panda_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[0])
 		p.setJointMotorControl2(self.panda, self.panda_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[0])
 		p.stepSimulation()
 
 
-	def close_gripper(self):
+	def open_gripper(self):
 		p.setJointMotorControl2(self.panda, self.panda_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[1])
 		p.setJointMotorControl2(self.panda, self.panda_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=self.panda_fingers_limits[1])
 		p.stepSimulation()
@@ -121,35 +119,61 @@ class Morpheus:
 		p.setJointMotorControl2(self.panda, self.panda_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=value)
 		p.stepSimulation()
 
-	def orient_base_to_yaw(self, theta, tolerance=0.1):
+	def orient_base_to_yaw(self, theta, tolerance=0.1, intelligent=True):
 		pose, orientation = p.getBasePositionAndOrientation(self.husky)
 		yaw = p.getEulerFromQuaternion(orientation)[2]
 		wheelVelocities = [0, 0, 0, 0]
 		wheelDeltasTurn = [1, -1, 1, -1]
 		wheelDeltasFwd = [1, 1, 1, 1]
 
-		while np.abs(yaw - theta) > tolerance:
-			wheelVelocities = [0, 0, 0, 0]
-			if yaw > theta:
-				#turn clockwise
-				for i in range(len(self.wheels)):
-					wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+		if not intelligent:
 
-			else:
-				#turn anti-clockwise
-				for i in range(len(self.wheels)):
-					wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+			while np.abs(yaw - theta) > tolerance:
+				wheelVelocities = [0, 0, 0, 0]
+				if yaw > theta:
+					#turn clockwise
+					for i in range(len(self.wheels)):
+						wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
 
-			for i in range(len(self.wheels)):
-			    p.setJointMotorControl2(self.husky,
-			                            self.wheels[i],
-			                            p.VELOCITY_CONTROL,
-			                            targetVelocity=wheelVelocities[i],
-			                            force=1000)
-			time.sleep(1)
-			pose, orientation = p.getBasePositionAndOrientation(self.husky)
-			yaw = p.getEulerFromQuaternion(orientation)[2]
-			print('turning: ',yaw)
+				else:
+					#turn anti-clockwise
+					for i in range(len(self.wheels)):
+						wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+
+				for i in range(len(self.wheels)):
+				    p.setJointMotorControl2(self.husky,
+				                            self.wheels[i],
+				                            p.VELOCITY_CONTROL,
+				                            targetVelocity=wheelVelocities[i],
+				                            force=1000)
+				time.sleep(1)
+				pose, orientation = p.getBasePositionAndOrientation(self.husky)
+				yaw = p.getEulerFromQuaternion(orientation)[2]
+				print('turning: ',yaw)
+		else:
+			if np.abs(theta) > 1.57 and yaw > 1.57:
+				while np.abs(yaw - theta) > tolerance:
+					wheelVelocities = [0, 0, 0, 0]
+					if yaw < theta:
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+
+					else:
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+
+					for i in range(len(self.wheels)):
+					    p.setJointMotorControl2(self.husky,
+					                            self.wheels[i],
+					                            p.VELOCITY_CONTROL,
+					                            targetVelocity=wheelVelocities[i],
+					                            force=1000)
+					time.sleep(1)
+					pose, orientation = p.getBasePositionAndOrientation(self.husky)
+					yaw = p.getEulerFromQuaternion(orientation)[2]
+					print('turning: ',yaw)
 		print('done yawing')
 		for i in range(len(self.wheels)):
 			    p.setJointMotorControl2(self.husky,
@@ -169,10 +193,14 @@ class Morpheus:
 
 		dist_covered = 0
 
-		while np.abs(dist_covered - goal_distance) > tolerance:
+		while np.abs(dist_covered - np.abs(goal_distance)) > tolerance:
 			wheelVelocities = [0, 0, 0, 0]
-			for i in range(len(self.wheels)):
-				wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasFwd[i]
+			if dist_covered < goal_distance:
+				for i in range(len(self.wheels)):
+					wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasFwd[i]
+			else:
+				for i in range(len(self.wheels)):
+					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasFwd[i]
 
 			
 			for i in range(len(self.wheels)):
@@ -202,11 +230,11 @@ class Morpheus:
 		distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
 		self.drive_base_for_distance(distance)
 		time.sleep(1)
-		self.orient_base_to_yaw(theta)
-		
-		init_pos, orientation = p.getBasePositionAndOrientation(self.husky)
-		distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
-		self.drive_base_for_distance(distance)
+		# self.orient_base_to_yaw(theta)
+
+		# init_pos, orientation = p.getBasePositionAndOrientation(self.husky)
+		# distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		# self.drive_base_for_distance(distance)
 
 
 
@@ -380,7 +408,7 @@ class Morpheus:
 			pose = p.getBasePositionAndOrientation(self.husky)
 			print('BASE POSE AND ORIENTATION: ',pose)
 			eepose = p.getLinkState(self.panda, self.panda_end_effector)
-			print('WORLD END-EFFECTOR POSE: ',eepose[0])
+			print('WORLD END-EFFECTOR POSE: ',eepose[0],eepose[1])
 			print('&'*30)
 			print(' ')
 
@@ -388,13 +416,18 @@ class Morpheus:
 	def run_open_drawer_test(self):
 		self.open_gripper()
 		theta = p.getEulerFromQuaternion(self.cabinet_base_pose[1])[2]
-		self.move_base_to_position(self.cabinet_base_pose[0][0],
+		self.move_base_to_position(self.cabinet_base_pose[0][0]+0.1,
 			self.cabinet_base_pose[0][1],theta)
 		time.sleep(1)
 		joints = [0,1,2,3,4,5,6]
+		angles= self.calculate_inverse_kinematics(self.top_drawer_handle_close_pose[0],
+					self.top_drawer_handle_close_pose[1], threshold=0.001, maxIter=100)
 		p.setJointMotorControlArray(self.panda, joints, controlMode=p.POSITION_CONTROL,
-									targetPositions=self.cabinet_level_arm_joints)
+									targetPositions=angles[:7])
+		time.sleep(1)
 		self.close_gripper()
+		time.sleep(2)
+		self.drive_base_for_distance(-0.5)
 		p.stepSimulation()
 
 
