@@ -49,9 +49,18 @@ class Morpheus:
 		self.attack_arm_joints = [0.6759720515464899, -0.9762374636142142, -0.3832188963630161, -2.5237772660146436, -0.17070514597781364, 2.998545341354475, -1.0500396473031615]
 		self.panda_resting_joints = [-1.6310335122148831, 0.16820470825782938, 0.31188980687764095, -2.714777928989822, -0.4470907467009208, 0.035748095159503876, -0.08582534693717468]
 		self.panda_cabinet_base_pose = ((-1.7592102373614105, 1.3455894400761355, -1.4779547603947603), (-0.0007125657738850433, 0.00018374131576973096, 0.998870400542496, 0.0475119080780837))
-		self.top_drawer_handle_close_pose =  [[-3.071478064394529, 1.2125335542071334, -0.6586245480738155] ,[0.625519052362346, -0.4671916992625666, -0.4602199529232834, 0.42267650301756654]]
+		self.top_drawer_handle_close_pose =  [[-3.071478064394529, 1.2125335542071334, -0.6886245480738155] ,[0.625519052362346, -0.4671916992625666, -0.4602199529232834, 0.42267650301756654]]
 		self.bottom_drawer_handle_close_pose =  [[-3.031478064394529, 1.2925335542071334, -0.9286245480738155] ,[0.625519052362346, -0.4671916992625666, -0.4602199529232834, 0.42267650301756654]]
 		self.panda_init_open_drawer_joints = [1.8261201630826278, 1.7257997526868105, -0.6630539736023232, -1.229559703623374, -0.3520992647197664, 3.3392093252690516, -1.9661317900665047]
+
+		self.top_locker_arm_joints = [-1.6603029407806946, 0.9231074757039127, 0.2674790666049998, -0.03740912180148676, 0.06095738792995047, 2.8188968646339676, 0.6099297548914087]
+		self.top_locker_handle_pose = [[-2.967224182048576, 1.181980717529208, 0.0062629991445975735],[0.0034945356414816105, -0.5926434723374485, 0.084282809762041, 0.8010355241155526]]
+		self.top_locker_base_pose = ((-2.21882054207176, 1.1780421114544755, -1.4781753440262075), (0.00019540959389212034, -0.00018999043907154625, -0.6772010393383353, 0.7357979872477243))
+
+		self.left_top_drawer_arm_joints = [0.3893111886122389, 1.044664694460621, -0.3832188852980879, -1.1648994764536031, 0.028281842950589758, 3.3369946431002804, -0.9294345101239323]
+		self.left_top_drawer_handle_pose = [[-2.778255993003974, -0.6411875356143112, -0.6040227059744339], [0.6736627051049497, -0.48442037803677185, -0.49719083839337996, 0.25360742755503163]]
+		self.left_top_drawer_base_pose = ((-1.7734329332997985, -0.36829967030264366, -1.4779097661944167), (-0.00068536400658598, -0.0002574711331499127, 0.9952121200693554, 0.09773586880901446))
+
 		self.move_arm_to_attack_pose()
 
 		self.door_indices = {
@@ -68,8 +77,10 @@ class Morpheus:
 						'baker':14
 		}
 		# self.rest_arm()
+		# self.run_open_left_top_drawer_test()
+		# self.run_open_bottom_drawer_test()
 		self.run_open_bottom_drawer_test()
-		# self.run_open_top_drawer_test()
+		self.run_close_bottom_drawer_test()
 		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.panda)):
 		# 	print(p.getJointInfo(self.panda,i))
@@ -152,7 +163,7 @@ class Morpheus:
 		angles = self.calculate_inverse_kinematics(position, orientation,
 			threshold=0.0001, maxIter=1000)
 		joints=[0,1,2,3,4,5,6]
-		# js = self.cabinet_level_arm_joints 
+		# js = self.left_top_drawer_arm_joints 
 		js = angles[:7]
 		for i in range(len(joints)):
 			p.setJointMotorControl2(self.panda, joints[i], controlMode=p.POSITION_CONTROL,
@@ -193,7 +204,7 @@ class Morpheus:
 				yaw = p.getEulerFromQuaternion(orientation)[2]
 				print('turning: ',yaw)
 		else:
-			if np.abs(theta) > 1.57 and yaw > 1.57:
+			if np.abs(theta) > 1.57 and np.abs(yaw) > 1.57:
 				while np.abs(yaw - theta) > tolerance:
 					wheelVelocities = [0, 0, 0, 0]
 					if yaw < theta and (yaw > 0 and theta > 0):
@@ -235,7 +246,7 @@ class Morpheus:
 					pose, orientation = p.getBasePositionAndOrientation(self.husky)
 					yaw = p.getEulerFromQuaternion(orientation)[2]
 					print('turning: ',yaw)
-			elif np.abs(theta) <= 1.57 and yaw <= 1.57:
+			elif np.abs(theta) <= 1.57 and np.abs(yaw) <= 1.57:
 				while np.abs(yaw - theta) > tolerance:
 					wheelVelocities = [0, 0, 0, 0]
 					if yaw < theta and (yaw > 0 and theta > 0):
@@ -511,6 +522,13 @@ class Morpheus:
 			if ord('m') in keys:
 				self.move_arm_to_pose(self.top_drawer_handle_close_pose[0], 
 					self.top_drawer_handle_close_pose[1])
+
+			if ord('p') in keys:
+				self.close_gripper()
+
+			if ord('o') in keys:
+				self.open_gripper()
+				
 			if p.B3G_LEFT_ARROW in keys:
 				for i in range(len(wheels)):
 					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasTurn[i]
@@ -565,6 +583,20 @@ class Morpheus:
 		# self.rest_arm()
 		p.stepSimulation()
 
+	def run_close_top_drawer_test(self):
+		self.close_gripper()
+		self.move_arm_to_pose(self.top_drawer_handle_close_pose[0],
+								self.top_drawer_handle_close_pose[1])
+		time.sleep(3)
+		theta = p.getEulerFromQuaternion(self.panda_cabinet_base_pose[1])[2]
+		self.move_base_to_position(self.panda_cabinet_base_pose[0][0]-0.1,
+			self.panda_cabinet_base_pose[0][1],theta)
+		
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		self.open_gripper()
+		p.stepSimulation()
+
 	def run_open_bottom_drawer_test(self):
 		self.open_gripper()
 		theta = p.getEulerFromQuaternion(self.panda_cabinet_base_pose[1])[2]
@@ -585,6 +617,41 @@ class Morpheus:
 		time.sleep(1)
 		# self.rest_arm()
 		p.stepSimulation()
+
+	def run_close_bottom_drawer_test(self):
+		self.close_gripper()
+		self.move_arm_to_pose(self.bottom_drawer_handle_close_pose[0],
+								self.bottom_drawer_handle_close_pose[1])
+		time.sleep(3)
+		theta = p.getEulerFromQuaternion(self.panda_cabinet_base_pose[1])[2]
+		self.move_base_to_position(self.panda_cabinet_base_pose[0][0]-0.1,
+			self.panda_cabinet_base_pose[0][1],theta)
+		
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		self.open_gripper()
+		p.stepSimulation()
+
+	def run_open_left_top_drawer_test(self):
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(self.left_top_drawer_base_pose[1])[2]
+		self.move_base_to_position(self.left_top_drawer_base_pose[0][0],
+			self.left_top_drawer_base_pose[0][1],theta)
+		time.sleep(1)
+		self.move_arm_to_pose(self.left_top_drawer_handle_pose[0],
+								self.left_top_drawer_handle_pose[1])
+		time.sleep(10)
+		self.drive_base_for_distance(0.055)
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		time.sleep(1)
+		self.open_gripper()
+		time.sleep(1)
+		# self.rest_arm()
+		p.stepSimulation()
+
 
 
 
