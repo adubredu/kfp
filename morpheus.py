@@ -50,6 +50,7 @@ class Morpheus:
 		self.panda_resting_joints = [-1.6310335122148831, 0.16820470825782938, 0.31188980687764095, -2.714777928989822, -0.4470907467009208, 0.035748095159503876, -0.08582534693717468]
 		self.panda_cabinet_base_pose = ((-1.7592102373614105, 1.3455894400761355, -1.4779547603947603), (-0.0007125657738850433, 0.00018374131576973096, 0.998870400542496, 0.0475119080780837))
 		self.top_drawer_handle_close_pose =  [[-3.071478064394529, 1.2125335542071334, -0.6586245480738155] ,[0.625519052362346, -0.4671916992625666, -0.4602199529232834, 0.42267650301756654]]
+		self.bottom_drawer_handle_close_pose =  [[-3.031478064394529, 1.2925335542071334, -0.9286245480738155] ,[0.625519052362346, -0.4671916992625666, -0.4602199529232834, 0.42267650301756654]]
 		self.panda_init_open_drawer_joints = [1.8261201630826278, 1.7257997526868105, -0.6630539736023232, -1.229559703623374, -0.3520992647197664, 3.3392093252690516, -1.9661317900665047]
 		self.move_arm_to_attack_pose()
 
@@ -67,7 +68,8 @@ class Morpheus:
 						'baker':14
 		}
 		# self.rest_arm()
-		self.run_open_top_drawer_test()
+		self.run_open_bottom_drawer_test()
+		# self.run_open_top_drawer_test()
 		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.panda)):
 		# 	print(p.getJointInfo(self.panda,i))
@@ -553,6 +555,27 @@ class Morpheus:
 								self.top_drawer_handle_close_pose[1])
 		time.sleep(10)
 		self.drive_base_for_distance(0.0199)
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		time.sleep(1)
+		self.open_gripper()
+		time.sleep(1)
+		# self.rest_arm()
+		p.stepSimulation()
+
+	def run_open_bottom_drawer_test(self):
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(self.panda_cabinet_base_pose[1])[2]
+		self.move_base_to_position(self.panda_cabinet_base_pose[0][0],
+			self.panda_cabinet_base_pose[0][1],theta)
+		time.sleep(1)
+		# self.drive_base_for_distance(-0.2)
+		self.move_arm_to_pose(self.bottom_drawer_handle_close_pose[0],
+								self.bottom_drawer_handle_close_pose[1])
+		time.sleep(10)
+		self.drive_base_for_distance(0.055)
 		time.sleep(5)
 		self.close_gripper()
 		time.sleep(5)
