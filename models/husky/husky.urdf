@@ -324,10 +324,10 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
   <link name="platform_link">
     <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <origin rpy="0 0 0" xyz="0 0 0.3"/>
       <geometry>
         <!-- <mesh filename="meshes/platform.stl"/> -->
-        <box size="0.3 0.3 0.5"/>
+        <box size="0.3 0.3 0.3"/>
       </geometry>
       <material name="Black"/>
     </visual>
@@ -342,7 +342,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 
   <link name="mount_link">
     <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.53"/>
+      <origin rpy="0 0 0" xyz="0 0 0.33"/>
       <geometry>
         <!-- <mesh filename="meshes/platform.stl"/> -->
         <box size="0.03 0.03 0.03"/>
