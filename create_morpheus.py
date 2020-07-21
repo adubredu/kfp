@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'
 import utils as ut
 
 clid = p.connect(p.GUI)
-# p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
+p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 p.setGravity(0, 0, -9.81)
 
 floor = p.loadURDF('models/floor/floor.urdf',useFixedBase=True)
@@ -48,7 +48,7 @@ for t in np.arange(0.0, 0.25, 0.05):
 	p.resetJointState(morph, 0, s)
 	print(t)
 	time.sleep(1)
-time.sleep(10)
+time.sleep(60)
 # for i in range(1000):
 # 	p.stepSimulation()
 # 	time.sleep(1)
