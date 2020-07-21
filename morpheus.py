@@ -7,6 +7,7 @@ from datetime import datetime
 import pybullet_data
 import sys
 import os
+from grocery_items import Grocery_item
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
 
@@ -37,6 +38,8 @@ class Morpheus:
 							-0.000988, 0.996491, 0.083659)
 		cid = p.createConstraint(self.husky, 8, self.panda, -1, p.JOINT_FIXED, [0, 0, 0], [0, 0, 0], [0., 0., -.2],
 								 [0, 0, 0, 1])
+		self.cube = self.create_object()
+
 		self.panda_end_effector = 11
 		self.panda_fingers_index = [9,10]
 		self.panda_fingers_limits= [0.0, 0.04]
@@ -61,6 +64,10 @@ class Morpheus:
 		self.left_top_drawer_handle_pose = [[-2.778255993003974, -0.6411875356143112, -0.6040227059744339], [0.6736627051049497, -0.48442037803677185, -0.49719083839337996, 0.25360742755503163]]
 		self.left_top_drawer_base_pose = ((-1.7734329332997985, -0.36829967030264366, -1.4779097661944167), (-0.00068536400658598, -0.0002574711331499127, 0.9952121200693554, 0.09773586880901446))
 
+		self.stove_robot_base_pose = ((-2.093645434908393, 0.6831989779136299, -1.4782375377804404), (-0.0003549067901624782, 0.00037238479383245573, 0.9991095559243969, 0.04218803895999372))
+		self.cube_top_grasp_pose = [[-2.890914937543639, 0.6432255037639979, -0.5228817490061057], [0.01845323118676989, 0.9064334589537164, 0.06001127516216436, -0.4176559703887638]]
+		self.stove_object_joint_pose=[0.4854295582517043, 0.4956185068202427, -0.4138767235977286, -1.691198265522257, -0.16441308500765175, 2.998740491696482, 1.097690063790488, 0.0]
+
 		self.move_arm_to_attack_pose()
 
 		self.door_indices = {
@@ -76,11 +83,12 @@ class Morpheus:
 						'indigo_drawer_bottom':58,
 						'baker':14
 		}
+		self.run_pick_food_from_stove_test()
 		# self.rest_arm()
 		# self.run_open_left_top_drawer_test()
 		# self.run_open_bottom_drawer_test()
-		self.run_open_bottom_drawer_test()
-		self.run_close_bottom_drawer_test()
+		# self.run_open_top_drawer_test()
+		# self.run_close_top_drawer_test()
 		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.panda)):
 		# 	print(p.getJointInfo(self.panda,i))
@@ -147,6 +155,23 @@ class Morpheus:
 										velocityGain=1, positionGain=0.005)
 			# time.sleep(1)
 			p.stepSimulation()
+
+	def create_object(self):
+		position=[-2.9, 0.6,-0.5524]
+		vid = p.createVisualShape(shapeType=p.GEOM_BOX, 
+								   halfExtents=[.025,.025,.025],
+								   rgbaColor=[1.,0.,1.,1])
+		collisionShapeId = p.createCollisionShape(
+								shapeType=p.GEOM_BOX,
+		                        halfExtents=[.025,.025,.025])
+		idd = p.createMultiBody(
+					baseCollisionShapeIndex=collisionShapeId,
+					baseVisualShapeIndex=vid,
+					basePosition=position,
+					# baseOrientation=orientation,
+					baseMass=0.1
+					)
+		return idd
 
 	def move_arm_to_attack_pose(self):
 		time.sleep(2)
@@ -439,94 +464,94 @@ class Morpheus:
 		while 1:
 			wheelVelocities = [0, 0, 0, 0]
 			keys = p.getKeyboardEvents()
-			if ord('q') in keys:
+			if ord('u') in keys:
 				ji = 0
 				currjoint = p.getJointState(self.panda, ji)[0]
 				self.control_joint(ji, currjoint-0.01, 
 								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('w') in keys:
+			if ord('i') in keys:
 				ji = 0
 				currjoint = p.getJointState(self.panda, ji)[0]
 				self.control_joint(ji, currjoint+0.01, 
 								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('a') in keys:
+			if ord('j') in keys:
 				ji = 1
 				currjoint = p.getJointState(self.panda, ji)[0]
 				self.control_joint(ji, currjoint-0.01, 
 								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('s') in keys:
+			if ord('k') in keys:
 				ji = 1
 				currjoint = p.getJointState(self.panda, ji)[0]
 				self.control_joint(ji, currjoint+0.01, 
 								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('z') in keys:
+			if ord('n') in keys:
 				ji = 2
 				currjoint = p.getJointState(self.panda, ji)[0]
 				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('x') in keys:
-				ji = 2
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('e') in keys:
-				ji = 3
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('r') in keys:
-				ji = 3
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('d') in keys:
-				ji = 4
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('f') in keys:
-				ji = 4
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('c') in keys:
-				ji = 5
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('v') in keys:
-				ji = 5
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('t') in keys:
-				ji = 6
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('y') in keys:
-				ji = 6
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('g') in keys:
-				ji = 7
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('h') in keys:
-				ji = 7
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
 								joint_limits[ji][0],joint_limits[ji][1])
 			if ord('m') in keys:
+				ji = 2
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('o') in keys:
+				ji = 3
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('p') in keys:
+				ji = 3
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('l') in keys:
+				ji = 4
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord(';') in keys:
+				ji = 4
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord(',') in keys:
+				ji = 5
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('.') in keys:
+				ji = 5
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('[') in keys:
+				ji = 6
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord(']') in keys:
+				ji = 6
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord(';') in keys:
+				ji = 7
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint-0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('/') in keys:
+				ji = 7
+				currjoint = p.getJointState(self.panda, ji)[0]
+				self.control_joint(ji, currjoint+0.01, 
+								joint_limits[ji][0],joint_limits[ji][1])
+			if ord('0') in keys:
 				self.move_arm_to_pose(self.top_drawer_handle_close_pose[0], 
 					self.top_drawer_handle_close_pose[1])
 
-			if ord('p') in keys:
+			if ord('1') in keys:
 				self.close_gripper()
 
-			if ord('o') in keys:
+			if ord('2') in keys:
 				self.open_gripper()
 				
 			if p.B3G_LEFT_ARROW in keys:
@@ -560,6 +585,23 @@ class Morpheus:
 			print('WORLD END-EFFECTOR POSE: ',eepose[0],eepose[1])
 			print('&'*30)
 			print(' ')
+
+	def run_pick_food_from_stove_test(self):
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(self.stove_robot_base_pose[1])[2]
+		self.move_base_to_position(self.stove_robot_base_pose[0][0],
+			self.stove_robot_base_pose[0][1], theta)
+		time.sleep(1)
+		pose,orientation = p.getBasePositionAndOrientation(self.cube)
+		# self.move_arm_to_pose(self.cube_top_grasp_pose[0],self.cube_top_grasp_pose[1])
+		joints = [0,1,2,3,4,5,6]
+		for i in range(len(joints)):
+			p.setJointMotorControl2(self.panda, joints[i], controlMode=p.POSITION_CONTROL,
+										targetPosition=self.stove_object_joint_pose[i],
+										velocityGain=1, positionGain=0.005)
+			# time.sleep(1)
+			p.stepSimulation()
+		time.sleep(10)
 
 
 	def run_open_top_drawer_test(self):
