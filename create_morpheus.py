@@ -24,7 +24,7 @@ for i in range(p.getNumJoints(morph)):
 
 time.sleep(2)
 s=0
-for t in np.arange(0.0, 0.25, 0.05):
+for t in np.arange(-0.25, 0.25, 0.05):
 	p.resetJointState(morph, 1, t)
 	s+=t/2.
 	p.resetJointState(morph, 0, s)
@@ -48,7 +48,14 @@ for t in np.arange(0.0, 0.25, 0.05):
 	p.resetJointState(morph, 0, s)
 	print(t)
 	time.sleep(1)
+time.sleep(5)
+for t in np.arange(-0.25, 0.25, 0.05):
+	p.resetJointState(morph, 5, t)
+	# s+=t/2.
+	# p.resetJointState(morph, 0, s)
+	# print(t)
+	time.sleep(1)
 time.sleep(60)
-# for i in range(1000):
-# 	p.stepSimulation()
-# 	time.sleep(1)
+for i in range(1000):
+	p.stepSimulation()
+	time.sleep(1)
