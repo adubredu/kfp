@@ -456,7 +456,7 @@ class Morpheus:
 			value = maxx
 		p.setJointMotorControl2(self.morph, joint,
 					controlMode=p.POSITION_CONTROL,targetPosition=value,
-					velocityGain=1, positionGain=0.005)
+					force=3000)
 		p.stepSimulation()
 
 
@@ -565,15 +565,16 @@ class Morpheus:
 
 			if ord('o') in  keys:
 				self.twist_gripper_vertical()
-				# # ji = 15
-				# currjoint = p.getJointState(self.morph, ji)[0]
-				# self.control_joint(ji, currjoint+0.01,-3.14,3.14)
 
 			if ord('p') in  keys:
 				self.twist_gripper_horizontal()
-				# ji = 15
-				# currjoint = p.getJointState(self.morph, ji)[0]
-				# self.control_joint(ji, currjoint-0.01,-3.14,3.14)
+
+
+			if ord('z') in  keys:
+				self.open_door('indigo_drawer_top')
+
+			if ord('x') in  keys:
+				self.close_door('indigo_drawer_top')
 
 			if ord('0') in keys:
 				self.move_arm_to_pose(self.top_drawer_handle_close_pose[0], 
@@ -753,8 +754,6 @@ class Morpheus:
 		time.sleep(1)
 		# self.rest_arm()
 		p.stepSimulation()
-
-
 
 
 
