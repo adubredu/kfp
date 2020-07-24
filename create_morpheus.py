@@ -18,7 +18,7 @@ p.setGravity(0, 0, -9.81)
 p.setAdditionalSearchPath('models')
 
 floor = p.loadURDF('floor/floor.urdf',useFixedBase=True)
-morph = p.loadURDF('morpheus_description/husky_with_morph.urdf')#, [0,0,0], p.getQuaternionFromEuler((0,0,0)))
+morph = p.loadURDF('morpheus_description/morph_with_horizontal_gripper.urdf')#, [0,0,0], p.getQuaternionFromEuler((0,0,0)))
 
 # husky = p.loadURDF("husky/husky.urdf", [0,0,0])
 for i in range(p.getNumJoints(morph)):

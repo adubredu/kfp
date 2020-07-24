@@ -33,8 +33,9 @@ class Morpheus:
 		ut.set_point(self.floor, point)
 		# time.sleep(5)
 		with ut.HideOutput(enable=True):
-			self.morph = p.loadURDF("morpheus_description/husky_with_morph.urdf", [0,0,-1.45])
-		self.cube = self.create_object()
+			self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", [-.5,6,-1.45])
+
+		self.setup_environment()
 
 		self.morph_end_effector = 11
 		self.morph_fingers_index = [16,17]
@@ -99,7 +100,13 @@ class Morpheus:
 		# 					1.57)
 		time.sleep(60)
 
-
+	def setup_environment(self):
+		tableId = p.loadURDF("objects/table/table.urdf",[1.6087, -4.4277, -1.477],p.getQuaternionFromEuler([0,0,0]))
+		fanta = Grocery_item(urdf_path='objects/can_sprite/sprite.obj',
+			object_name='can_sprite', height=0.17,width=0.08,orr=1.57, urdf=False, p=p, x=-2.9, y=0.6,z=-0.5524)
+		chair = p.loadSDF("objects/chair_1/model.sdf")
+		p.resetBasePositionAndOrientation(chair[0], \
+			[1.52078, -5.408, -1.4783], p.getQuaternionFromEuler([0,0,1.57]))
 
 	def calculate_inverse_kinematics(self, targetPos,targetOr, threshold, maxIter):
 		closeEnough = False
@@ -392,9 +399,9 @@ class Morpheus:
 		time.sleep(1)
 		self.orient_base_to_yaw(theta)
 
-		init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
-		distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
-		self.drive_base_for_distance(distance)
+		# init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		# distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		# self.drive_base_for_distance(distance)
 
 
 
@@ -430,6 +437,17 @@ class Morpheus:
 		index = self.door_indices[name]
 		ut.set_joint_position(self.kitchen, index, self.closed_conf(index))
 
+	def stow_gripper(self):
+		self.control_joint(14, -3, -3.14,3.14)
+
+	def ready_gripper(self):
+		self.control_joint(14, 0, -3.14,3.14)
+
+	def twist_gripper_vertical(self):
+		self.control_joint(15, 1.57, -3.14,3.14)
+
+	def twist_gripper_horizontal(self):
+		self.control_joint(15, 0, -3.14,3.14)
 
 	def control_joint(self, joint, value, minn, maxx):
 		if value < minn:
@@ -437,7 +455,8 @@ class Morpheus:
 		if value > maxx:
 			value = maxx
 		p.setJointMotorControl2(self.morph, joint,
-					controlMode=p.POSITION_CONTROL,targetPosition=value)
+					controlMode=p.POSITION_CONTROL,targetPosition=value,
+					velocityGain=1, positionGain=0.005)
 		p.stepSimulation()
 
 
@@ -449,11 +468,23 @@ class Morpheus:
 		if dist <= 0.55:
 			self.control_joint(joints_from_ee[0],
 				(dist-0.3),min_limit, max_limit)
+			self.control_joint(joints_from_ee[1],
+				0,min_limit, max_limit)
+			self.control_joint(joints_from_ee[2],
+				0,min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				0,min_limit, max_limit)
+
 		elif dist > 0.55 and dist <= 0.8:
 			self.control_joint(joints_from_ee[0],
 				0.25,min_limit, max_limit)
 			self.control_joint(joints_from_ee[1],
 				(dist-0.55),min_limit, max_limit)
+			self.control_joint(joints_from_ee[2],
+				0,min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				0,min_limit, max_limit)
+
 		elif dist > 0.8 and dist <= 1.05:
 			self.control_joint(joints_from_ee[0],
 				0.25,min_limit, max_limit)
@@ -461,6 +492,9 @@ class Morpheus:
 				0.25,min_limit, max_limit)
 			self.control_joint(joints_from_ee[2],
 				(dist-0.8),min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				0,min_limit, max_limit)
+
 		elif dist > 1.05 and dist <= 1.3:
 			self.control_joint(joints_from_ee[0],
 				0.25,min_limit, max_limit)
@@ -497,12 +531,14 @@ class Morpheus:
 			keys = p.getKeyboardEvents()
 			if ord('u') in keys:
 				ji = 9
+				height = p.getJointState(self.morph, ji)[0]
 				if height < 1.3:
 					height += 0.001
 				self.control_joint(ji, height, 0.0, 1.3)
 
 			if ord('i') in keys:
 				ji = 9
+				height = p.getJointState(self.morph, ji)[0]
 				if height > 0.0:
 					height -= 0.001
 				self.control_joint(ji, height, 0.0,1.3)
@@ -526,6 +562,18 @@ class Morpheus:
 				ji = 14
 				currjoint = p.getJointState(self.morph, ji)[0]
 				self.control_joint(ji, currjoint-0.01,-3.14,3.14)
+
+			if ord('o') in  keys:
+				self.twist_gripper_vertical()
+				# # ji = 15
+				# currjoint = p.getJointState(self.morph, ji)[0]
+				# self.control_joint(ji, currjoint+0.01,-3.14,3.14)
+
+			if ord('p') in  keys:
+				self.twist_gripper_horizontal()
+				# ji = 15
+				# currjoint = p.getJointState(self.morph, ji)[0]
+				# self.control_joint(ji, currjoint-0.01,-3.14,3.14)
 
 			if ord('0') in keys:
 				self.move_arm_to_pose(self.top_drawer_handle_close_pose[0], 
@@ -559,32 +607,61 @@ class Morpheus:
 			# p.stepSimulation()
 
 			joint_angles=[]
-			# for i in joint_limits:
-			# 	joint_angles.append(p.getJointState(self.morph,i)[0])
-			# print('JOINT ANGLES ARE: ',joint_angles)
+			
 			pose = p.getBasePositionAndOrientation(self.morph)
 			print('BASE POSE AND ORIENTATION: ',pose)
-			# eepose = p.getLinkState(self.morph, self.morph_end_effector)
-			# print('WORLD END-EFFECTOR POSE: ',eepose[0],eepose[1])
+			print('ARM HEIGHT: ',height)
+			print('ARM LENGTH: ',dist)
 			print('&'*30)
 			print(' ')
 
 	def run_pick_food_from_stove_test(self):
-		self.open_gripper()
-		theta = p.getEulerFromQuaternion(self.stove_robot_base_pose[1])[2]
-		self.move_base_to_position(self.stove_robot_base_pose[0][0],
-			self.stove_robot_base_pose[0][1], theta)
+		self.stow_gripper()
+		basepose = ((-2.100468710096393, 0.9231578949558297, -1.477370604548337), (-0.0008581358239357019, -0.0005171708162984435, -0.7119393288519943, 0.702240263849223))
+		theta = p.getEulerFromQuaternion(basepose[1])[2]
+		self.move_base_to_position(basepose[0][0], basepose[0][1],theta)
 		time.sleep(1)
-		pose,orientation = p.getBasePositionAndOrientation(self.cube)
-		# self.move_arm_to_pose(self.cube_top_grasp_pose[0],self.cube_top_grasp_pose[1])
-		joints = [0,1,2,3,4,5,6]
-		for i in range(len(joints)):
-			p.setJointMotorControl2(self.morph, joints[i], controlMode=p.POSITION_CONTROL,
-										targetPosition=self.stove_object_joint_pose[i],
-										velocityGain=1, positionGain=0.005)
-			# time.sleep(1)
-			p.stepSimulation()
-		time.sleep(10)
+
+		height = 0.406
+		length = 0.6
+		self.control_joint(9, height, 0.0, 1.3)
+		time.sleep(3)
+		self.open_gripper()
+		time.sleep(3)
+		self.ready_gripper()
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.close_gripper()
+		time.sleep(3)
+		self.control_joint(9, height+0.2, 0.0, 1.3)
+		self.extend_arm_to(length-0.4)
+		time.sleep(3)
+
+		destpose = ((1.6820733918269681, -3.2852051873822616, -1.4771831169755152), (-6.802841669425193e-05, -0.0008524114072207692, -0.030760320506220924, 0.9995264235873317))
+		theta = p.getEulerFromQuaternion(destpose[1])[2]
+		self.move_base_to_position(destpose[0][0], destpose[0][1],theta)
+		time.sleep(1)
+
+		height = 0.3
+		length = 1.1
+		self.control_joint(9, height, 0.0, 1.3)
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.open_gripper()
+		time.sleep(3)
+		self.control_joint(9, height+0.4, 0.0, 1.3)
+		time.sleep(3)
+		self.extend_arm_to(0.4)
+		time.sleep(3)
+		self.stow_gripper()
+		time.sleep(3)
+		
+
+
+
+
 
 
 	def run_open_top_drawer_test(self):
