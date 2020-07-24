@@ -15,65 +15,20 @@ import utils as ut
 clid = p.connect(p.GUI)
 p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 p.setGravity(0, 0, -9.81)
+p.setAdditionalSearchPath('models')
 
-floor = p.loadURDF('models/floor/floor.urdf',useFixedBase=True)
-morph = p.loadURDF('models/morpheus_description/morpheus.urdf', (0,0,0.9))
+floor = p.loadURDF('floor/floor.urdf',useFixedBase=True)
+morph = p.loadURDF('morpheus_description/husky_with_morph.urdf')#, [0,0,0], p.getQuaternionFromEuler((0,0,0)))
 
+# husky = p.loadURDF("husky/husky.urdf", [0,0,0])
 for i in range(p.getNumJoints(morph)):
   print(p.getJointInfo(morph, i))
+# cid = p.createConstraint(husky, 7, morph, -1, p.JOINT_FIXED, [0, 0, 0], [0, 0, 0], [0., 0., 5],
+                         # [0, 0, 0, 1])
 
-time.sleep(2)
-s=0
-for t in np.arange(0, 0.25, 0.05):
-	p.resetJointState(morph, 1, t)
-	s+=t/2.
-	p.resetJointState(morph, 0, s)
-	print(t)
-	time.sleep(.1)
-for t in np.arange(0.0, 0.25, 0.05):
-	p.resetJointState(morph, 2, t)
-	s+=t/2.
-	p.resetJointState(morph, 0, s)
-	print(t)
-	time.sleep(.1)
-for t in np.arange(0.0, 0.25, 0.05):
-	p.resetJointState(morph, 3, t)
-	s+=t/2.
-	p.resetJointState(morph, 0, s)
-	print(t)
-	time.sleep(.1)
-for t in np.arange(0.0, 0.25, 0.05):
-	p.resetJointState(morph, 4, t)
-	s+=t/2.
-	p.resetJointState(morph, 0, s)
-	print(t)
-	time.sleep(.1)
-time.sleep(5)
-# for t in np.arange(-3.14, 3.14, 0.05):
-# 	p.resetJointState(morph, 5, t)
-# 	# s+=t/2.
-# 	# p.resetJointState(morph, 0, s)
-# 	# print(t)
+# p.resetJointState(morph, 0, 1.3)
+# for t in np.arange(0, 1.3, 0.05):
+# 	p.resetJointState(morph, 0, t)
 # 	time.sleep(1)
-# for t in np.arange(0.0, 0.06, 0.005):
-p.resetJointState(morph, 7, 0.06)
-	# s+=t/2.
-	# p.resetJointState(morph, 0, s)
-	# print(t)
-	# time.sleep(1)
-# for t in np.arange(0.0,-0.006, -0.005):
-p.resetJointState(morph, 8, -0.06)
-	# s+=t/2.
-	# p.resetJointState(morph, 0, s)
-	# print(t)
-time.sleep(5)
-for t in np.arange(-3.14, 3.14, 0.05):
-	p.resetJointState(morph, 5, t)
-	# s+=t/2.
-	# p.resetJointState(morph, 0, s)
-	# print(t)
-	time.sleep(1)
-time.sleep(60)
-for i in range(1000):
-	p.stepSimulation()
-	time.sleep(1)
+# print('done')
+time.sleep(300)
