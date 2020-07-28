@@ -84,7 +84,7 @@ class Morpheus:
 		# self.rest_arm()
 		# self.run_open_left_top_drawer_test()
 		# self.run_open_bottom_drawer_test()
-		# self.run_open_top_drawer_test()
+		self.run_open_top_drawer_test()
 		# self.run_close_top_drawer_test()
 		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.morph)):
@@ -101,6 +101,10 @@ class Morpheus:
 		time.sleep(60)
 
 	def setup_environment(self):
+		p.changeDynamics(self.morph, 16, lateralFriction=10000)
+		p.changeDynamics(self.morph, 17, lateralFriction=10000)
+		p.changeDynamics(self.morph, 18, lateralFriction=10000)
+
 		tableId = p.loadURDF("objects/table/table.urdf",[1.6087, -4.4277, -1.477],p.getQuaternionFromEuler([0,0,0]))
 		fanta = Grocery_item(urdf_path='objects/can_sprite/sprite.obj',
 			object_name='can_sprite', height=0.17,width=0.08,orr=1.57, urdf=False, p=p, x=-2.9, y=0.6,z=-0.5524)
@@ -134,8 +138,8 @@ class Morpheus:
 
 
 	def close_gripper(self):
-		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=0.06)
-		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=-0.06)
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=0.06, force=3000)
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=-0.06, force=3000)
 		p.stepSimulation()
 
 
@@ -463,7 +467,7 @@ class Morpheus:
 	def extend_arm_to(self,dist):
 		min_limit = 0; max_limit=0.25
 		joints_from_ee = [13,12,11,10]
-		if dist <= 0.3:
+		if dist < 0.3:
 			return False
 		if dist <= 0.55:
 			self.control_joint(joints_from_ee[0],
@@ -666,23 +670,32 @@ class Morpheus:
 
 
 	def run_open_top_drawer_test(self):
+
+		vertical_index = 9
+		handle_height = 0.233
+		length = 1.04
+		retract_to = 0.3
+		base_pose =  ((-1.4232540350850436, 1.454662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+
 		self.open_gripper()
-		theta = p.getEulerFromQuaternion(self.morph_cabinet_base_pose[1])[2]
-		self.move_base_to_position(self.morph_cabinet_base_pose[0][0],
-			self.morph_cabinet_base_pose[0][1],theta)
-		time.sleep(1)
-		# self.drive_base_for_distance(-0.2)
-		self.move_arm_to_pose(self.top_drawer_handle_close_pose[0],
-								self.top_drawer_handle_close_pose[1])
-		time.sleep(10)
-		self.drive_base_for_distance(0.0199)
-		time.sleep(5)
+		theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		self.move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		time.sleep(2)
+
+		self.twist_gripper_vertical()
+		time.sleep(3)
+		self.control_joint(vertical_index, handle_height, 0.0,1.3)
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
 		self.close_gripper()
-		time.sleep(5)
-		self.drive_base_for_distance(-0.5)
-		time.sleep(1)
+		time.sleep(3)
+		self.extend_arm_to(retract_to)
+		time.sleep(3)
 		self.open_gripper()
-		time.sleep(1)
+
+		
+		time.sleep(3)
 		# self.rest_arm()
 		p.stepSimulation()
 

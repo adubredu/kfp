@@ -21,8 +21,8 @@ floor = p.loadURDF('floor/floor.urdf',useFixedBase=True)
 morph = p.loadURDF('morpheus_description/morph_with_horizontal_gripper.urdf')#, [0,0,0], p.getQuaternionFromEuler((0,0,0)))
 
 # husky = p.loadURDF("husky/husky.urdf", [0,0,0])
-for i in range(p.getNumJoints(morph)):
-  print(p.getJointInfo(morph, i))
+# for i in range(p.getNumJoints(morph)):
+#   print(p.getJointInfo(morph, i))
 # cid = p.createConstraint(husky, 7, morph, -1, p.JOINT_FIXED, [0, 0, 0], [0, 0, 0], [0., 0., 5],
                          # [0, 0, 0, 1])
 
@@ -31,4 +31,10 @@ for i in range(p.getNumJoints(morph)):
 # 	p.resetJointState(morph, 0, t)
 # 	time.sleep(1)
 # print('done')
+_link_name_to_index = {p.getBodyInfo(morph)[0].decode('UTF-8'):-1,}
+        
+for _id in range(p.getNumJoints(morph)):
+	_name = p.getJointInfo(morph, _id)[12].decode('UTF-8')
+	_link_name_to_index[_name] = _id
+print(_link_name_to_index)
 time.sleep(300)

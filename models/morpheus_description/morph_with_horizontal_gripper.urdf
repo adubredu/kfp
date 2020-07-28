@@ -617,6 +617,30 @@
     <limit lower="-3.14" upper="3.14" effort="300" velocity="10"/>
   </joint>
 
+   <link name="hook">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value=".01"/>
+       <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0. 0 0"/>
+      <geometry>
+        <mesh filename="hook.stl" scale="1 1 1"/>
+      </geometry>
+       <material name="grey3"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0. 0 0"/>
+      <geometry>
+       <mesh filename="hook.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+
+
+
+
   <link name="gripper_base">
     <inertial>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -702,6 +726,12 @@
     <origin rpy="0. 0 -1.57" xyz="0.062 -0.06 -0.011"/>
     <axis xyz="1 0 0"/>
     <limit lower="-0.06" upper="0.0" effort="300" velocity="10"/>
+  </joint>
+
+  <joint name="hook_to_wrist" type="fixed">
+    <parent link="wrist"/>
+    <child link="hook"/>
+    <origin rpy="1.57 -0 3.14" xyz="-0.06 0 -0.01"/>
   </joint>
 
 </robot>
