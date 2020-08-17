@@ -25,6 +25,12 @@
   <material name="Yellow">
     <color rgba="0.8 0.8 0.0 1.0"/>
   </material>
+  <material name="Brown">
+    <color rgba="0.52 0.24 0.02 1.0"/>
+  </material>
+  <material name="Purple">
+    <color rgba="0.37 0.02 0.52 1.0"/>
+  </material>
   <!-- Base Size -->
   <!-- Wheel Mounting Positions -->
   <!-- Wheel Properties -->
@@ -382,9 +388,7 @@
       <geometry>
         <box size="0.05 0.05 1.8"/>
       </geometry>
-       <material name="black">
-        <color rgba="0.01 0.01 0.01 1"/>
-      </material>
+       <material name="Brown"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -681,7 +685,7 @@
       <geometry>
         <mesh filename="left_gripper.stl" scale="1 1 1"/>
       </geometry>
-       <material name="black"/>
+       <material name="Purple"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0. 0 0"/>
@@ -710,7 +714,7 @@
       <geometry>
         <mesh filename="right_gripper.stl" scale="1 1 1"/>
       </geometry>
-       <material name="black"/>
+       <material name="Purple"/>
     </visual>
     <collision>
        <origin rpy="0 0 0" xyz="0. 0 0"/>

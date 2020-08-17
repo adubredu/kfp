@@ -15,9 +15,9 @@ import utils as ut
 
 clid = p.connect(p.GUI)
 p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
-p.setGravity(0, 0, -9.81)
+p.setGravity(0, 0, 0)
 p.setAdditionalSearchPath('models')
-p.setRealTimeSimulation(1)
+# p.setRealTimeSimulation(1)
 
 
 
@@ -33,7 +33,7 @@ class Morpheus:
 		ut.set_point(self.floor, point)
 		# time.sleep(5)
 		with ut.HideOutput(enable=True):
-			self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", [-.5,6,-1.45])
+			self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", [1.0,6,-1.45], p.getQuaternionFromEuler((0,0,1.57)))
 
 		self.setup_environment()
 
@@ -65,6 +65,8 @@ class Morpheus:
 		self.cube_top_grasp_pose = [[-2.890914937543639, 0.6432255037639979, -0.5228817490061057], [0.01845323118676989, 0.9064334589537164, 0.06001127516216436, -0.4176559703887638]]
 		self.stove_object_joint_pose=[0.4854295582517043, 0.4956185068202427, -0.4138767235977286, -1.691198265522257, -0.16441308500765175, 2.998740491696482, 1.097690063790488, 0.0]
 
+		self.lspeed = 0.001
+		self.tspeed = 0.001
 		# self.move_arm_to_attack_pose()
 
 		self.door_indices = {
@@ -80,11 +82,26 @@ class Morpheus:
 						'indigo_drawer_bottom':58,
 						'baker':14
 		}
+
+		# while True:
+		# 	print('forward')
+		# 	self.control_joint(14, 0,-3.14,3.14)
+		# 	time.sleep(3)
+		# 	print('backward')
+		# 	self.control_joint(14, 3.14,-3.14,3.14)
+		# 	time.sleep(6)
+		# base_pose =  ((-1.4232540350850436, 1.154662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+		# theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		# self.move_base_to_pose(base_pose[0][0], base_pose[0][1], theta)
+		# self.teleop_base()
 		# self.run_pick_food_from_stove_test()
 		# self.rest_arm()
 		# self.run_open_left_top_drawer_test()
 		# self.run_open_bottom_drawer_test()
-		self.run_open_top_drawer_test()
+		# self.run_open_top_drawer_test()
+		# time.sleep(6)
+		# self.run_pick_food_from_stove_test()
+		# time.sleep(6)
 		# self.run_close_top_drawer_test()
 		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.morph)):
@@ -106,9 +123,10 @@ class Morpheus:
 		p.changeDynamics(self.morph, 18, lateralFriction=10000)
 
 		tableId = p.loadURDF("objects/table/table.urdf",[1.6087, -4.4277, -1.477],p.getQuaternionFromEuler([0,0,0]))
-		fanta = Grocery_item(urdf_path='objects/can_sprite/sprite.obj',
-			object_name='can_sprite', height=0.17,width=0.08,orr=1.57, urdf=False, p=p, x=-2.9, y=0.6,z=-0.5524)
+		self.sprite = Grocery_item(urdf_path='objects/can_sprite/sprite.obj',
+			object_name='can_sprite', height=0.17,width=0.08,orr=1.57, urdf=False, p=p, x=-2.9, y=0.65,z=-0.5524)
 		chair = p.loadSDF("objects/chair_1/model.sdf")
+		p.changeDynamics(self.sprite.id,-1,mass=0.1)
 		p.resetBasePositionAndOrientation(chair[0], \
 			[1.52078, -5.408, -1.4783], p.getQuaternionFromEuler([0,0,1.57]))
 
@@ -128,6 +146,17 @@ class Morpheus:
 			iter = iter + 1
 
 		return jointPoses
+
+	def grasp_item(self, item_index):
+		gid = p.createConstraint(self.morph, 15,#self.morph_end_effector,
+			item_index, -1, p.JOINT_FIXED,[1,0,0],[0,0,0],[0,0,0],
+			childFrameOrientation=p.getQuaternionFromEuler((-1.57,0,0)))
+		return gid 
+
+
+	def release_item(self, gid):
+		p.removeConstraint(gid)
+
 
 
 	def move_arm_to_cabinet_level(self):
@@ -395,6 +424,8 @@ class Morpheus:
 
 	def move_base_to_position(self, gx, gy, theta):
 		init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		if np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2) < 0.2:
+			return False
 		direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
 		self.orient_base_to_yaw(direction)
 		time.sleep(1)
@@ -573,6 +604,12 @@ class Morpheus:
 			if ord('p') in  keys:
 				self.twist_gripper_horizontal()
 
+			if ord('h') in  keys:
+				self.grasped = self.grasp_item(self.sprite.id)
+
+			if ord('b') in  keys:
+				self.release_item(self.grasped)
+
 
 			if ord('z') in  keys:
 				self.open_door('indigo_drawer_top')
@@ -589,7 +626,15 @@ class Morpheus:
 
 			if ord('2') in keys:
 				self.open_gripper()
-				
+
+			if ord('[') in keys:
+				self.run_pick_food_from_stove_test()
+
+			if ord(']') in keys:
+				self.run_open_top_drawer_test()
+				time.sleep(6)
+				self.run_close_top_drawer_test()
+			'''	
 			if p.B3G_LEFT_ARROW in keys:
 				for i in range(len(wheels)):
 					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasTurn[i]
@@ -609,20 +654,150 @@ class Morpheus:
 									p.VELOCITY_CONTROL,
 									targetVelocity=wheelVelocities[i],
 									force=1000)
-			# p.stepSimulation()
+			'''
 
-			joint_angles=[]
+			# p.stepSimulation()
+			if p.B3G_UP_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				# del_pos = [self.lspeed,0,0]
+				# del_orr=p.getQuaternionFromEuler((0,0,0))
+				# inv = p.invertTransform(pos,orr)
+				# transform = p.multiplyTransforms(inv[0], inv[1], del_pos, del_orr)
+				euorr = p.getEulerFromQuaternion(orr)
+				x = pos[0] - (self.lspeed*np.cos(euorr[2]))
+				y = pos[1] - (self.lspeed*np.sin(euorr[2]))
+				transform = ((x,y,pos[2]), orr)
+				p.resetBasePositionAndOrientation(self.morph, transform[0], transform[1])
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+				print(transform)
+				print('###')
+
+			if p.B3G_DOWN_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				euorr = p.getEulerFromQuaternion(orr)
+				x = pos[0] + (self.lspeed*np.cos(euorr[2]))
+				y = pos[1] + (self.lspeed*np.sin(euorr[2]))
+				transform = ((x,y,pos[2]), orr)
+				p.resetBasePositionAndOrientation(self.morph, transform[0], transform[1])
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+				print(transform)
+				print('###')
+
+			if p.B3G_RIGHT_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				euorr = list(p.getEulerFromQuaternion(orr))
+				euorr[2] -= self.tspeed
+				p.resetBasePositionAndOrientation(self.morph, pos, p.getQuaternionFromEuler(euorr))
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+
+			if p.B3G_LEFT_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				euorr = list(p.getEulerFromQuaternion(orr))
+				euorr[2] += self.tspeed
+				p.resetBasePositionAndOrientation(self.morph, pos, p.getQuaternionFromEuler(euorr))
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
 			
-			pose = p.getBasePositionAndOrientation(self.morph)
-			print('BASE POSE AND ORIENTATION: ',pose)
-			print('ARM HEIGHT: ',height)
-			print('ARM LENGTH: ',dist)
-			print('&'*30)
-			print(' ')
+			# pose = p.getBasePositionAndOrientation(self.morph)
+			# print('BASE POSE AND ORIENTATION: ',pose)
+			# print('ARM HEIGHT: ',height)
+			# print('ARM LENGTH: ',dist)
+			# print('&'*30)
+			# print(' ')
+
+
+	def drive_base(self, linear_speed, angular_speed):
+		wheels = [2, 3, 4, 5]
+		wheelVelocities = [0, 0, 0, 0]
+		width = 0.57
+		scale = 0.5
+
+		left_motors = (linear_speed + angular_speed*(width/2))*scale
+		right_motors = (linear_speed - angular_speed*(width/2))*scale
+
+		wheelVelocities[0] = left_motors; wheelVelocities[2] = left_motors
+		wheelVelocities[1] = right_motors; wheelVelocities[3] = right_motors
+
+		for i in range(len(wheels)):
+			p.setJointMotorControl2(self.morph,
+								wheels[i],
+								p.VELOCITY_CONTROL,
+								targetVelocity=wheelVelocities[i],
+								force=1000)
+		# time.sleep(0.01)
+
+
+	def teleop_base(self):
+		while  True:
+			keys = p.getKeyboardEvents()
+			if p.B3G_LEFT_ARROW in keys:
+				self.drive_base(0.,-6.)
+			elif p.B3G_RIGHT_ARROW in keys:
+				self.drive_base(0.,6.)
+			elif p.B3G_UP_ARROW in keys:
+				self.drive_base(3.,0.)
+			elif p.B3G_DOWN_ARROW in keys:
+				self.drive_base(-3.,0.)
+			else:
+				self.drive_base(0.,0.)
+
+
+	def at_pose(self,gx,gy,theta,threshold=0.08):
+		curr_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		curr_theta = p.getEulerFromQuaternion(orientation)[2]
+		if (np.abs(curr_pos[0] - gx) < threshold) and \
+			(np.abs(curr_pos[1] -gy) < threshold) and \
+			(np.abs(curr_theta - theta) < threshold):
+			return True 
+		else:
+			return False
+
+
+	def new_move_base_to_position(self, gx, gy, theta):
+		# init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		# if np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2) < 0.2:
+		# 	return False
+		# direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
+		# self.orient_base_to_yaw(direction)
+		# time.sleep(1)
+		# distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		# self.drive_base_for_distance(distance)
+		# time.sleep(1)
+		# self.orient_base_to_yaw(theta)
+
+
+		while not self.at_pose(gx, gy, theta):
+			init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+			direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
+			distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+			if gx < init_pos[0]:# or gy > init_pos[1]:
+				distance *=-1
+			if np.abs(distance) <= 0.05:
+				direction = theta 
+				distance = 0
+			print("linear: %f angular: %f theta: %f"%(distance, direction, theta))
+			self.drive_base(0,-direction)
+			self.drive_base(distance,0)
+		self.drive_base(0,0)
+		print("I'm there")
+
+
+
+
+
+
 
 	def run_pick_food_from_stove_test(self):
+		p.resetBasePositionAndOrientation(self.morph,[-0.5,6,-1.45], p.getQuaternionFromEuler((0,0,0)))
 		self.stow_gripper()
-		basepose = ((-2.100468710096393, 0.9231578949558297, -1.477370604548337), (-0.0008581358239357019, -0.0005171708162984435, -0.7119393288519943, 0.702240263849223))
+		basepose = ((-2.10468710096393, 0.9231578949558297, -1.477370604548337), (-0.0008581358239357019, -0.0005171708162984435, -0.7119393288519943, 0.702240263849223))
 		theta = p.getEulerFromQuaternion(basepose[1])[2]
 		self.move_base_to_position(basepose[0][0], basepose[0][1],theta)
 		time.sleep(1)
@@ -640,14 +815,23 @@ class Morpheus:
 		self.close_gripper()
 		time.sleep(3)
 		self.control_joint(9, height+0.2, 0.0, 1.3)
+		p.resetJointState(self.morph, 15, 0)
 		self.extend_arm_to(length-0.4)
 		time.sleep(3)
 
-		destpose = ((1.6820733918269681, -3.2852051873822616, -1.4771831169755152), (-6.802841669425193e-05, -0.0008524114072207692, -0.030760320506220924, 0.9995264235873317))
-		theta = p.getEulerFromQuaternion(destpose[1])[2]
-		self.move_base_to_position(destpose[0][0], destpose[0][1],theta)
-		time.sleep(1)
+		base_pose =  ((-1.4232540350850436, 1.154662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+		theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		self.move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		time.sleep(2)
 
+		self.open_gripper()
+		# destpose = ((1.6820733918269681, -3.2852051873822616, -1.4771831169755152), (-6.802841669425193e-05, -0.0008524114072207692, -0.030760320506220924, 0.9995264235873317))
+		# theta = p.getEulerFromQuaternion(destpose[1])[2]
+		# self.move_base_to_position(destpose[0][0], destpose[0][1],theta)
+		# time.sleep(1)
+
+
+	def put_food_on_table(self):
 		height = 0.3
 		length = 1.1
 		self.control_joint(9, height, 0.0, 1.3)
@@ -664,23 +848,20 @@ class Morpheus:
 		time.sleep(3)
 		
 
-
-
-
-
-
 	def run_open_top_drawer_test(self):
+		p.resetBasePositionAndOrientation(self.morph,[1.0,6,-1.45], p.getQuaternionFromEuler((0,0,0)))
 
 		vertical_index = 9
 		handle_height = 0.233
 		length = 1.04
 		retract_to = 0.3
-		base_pose =  ((-1.4232540350850436, 1.454662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+		base_pose =  ((-1.4232540350850436, 1.164662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
 
 		self.open_gripper()
 		theta = p.getEulerFromQuaternion(base_pose[1])[2]
-		self.move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		self.new_move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
 		time.sleep(2)
+
 
 		self.twist_gripper_vertical()
 		time.sleep(3)
@@ -699,18 +880,30 @@ class Morpheus:
 		# self.rest_arm()
 		p.stepSimulation()
 
+
 	def run_close_top_drawer_test(self):
-		self.close_gripper()
-		self.move_arm_to_pose(self.top_drawer_handle_close_pose[0],
-								self.top_drawer_handle_close_pose[1])
+		vertical_index = 9
+		handle_height = 0.233
+		length = 1.3
+		turn_index = 14
+		retract_to = 0.3
+		base_pose =  ((-1.4232540350850436, 1.154662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+
+		self.twist_gripper_horizontal()
 		time.sleep(3)
-		theta = p.getEulerFromQuaternion(self.morph_cabinet_base_pose[1])[2]
-		self.move_base_to_position(self.morph_cabinet_base_pose[0][0]-0.1,
-			self.morph_cabinet_base_pose[0][1],theta)
-		
-		time.sleep(5)
-		self.drive_base_for_distance(-0.5)
-		self.open_gripper()
+		self.extend_arm_to(retract_to)
+		time.sleep(3)
+		self.control_joint(turn_index, 3.14,-3.14,3.14)
+		theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		self.move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.extend_arm_to(retract_to)
+		time.sleep(3)
+
+
+
 		p.stepSimulation()
 
 	def run_open_bottom_drawer_test(self):
