@@ -613,12 +613,12 @@
     </collision>
   </link>
 
-  <joint name="arm5_to_wrist" type="revolute">
+  <joint name="arm5_to_wrist" type="fixed">
     <parent link="arm5"/>
     <child link="wrist"/>
     <origin rpy="0 0 0" xyz="0.28 0 -0.54"/>
     <axis xyz="0 0 1"/>
-    <limit lower="-3.14" upper="3.14" effort="300" velocity="10"/>
+    <!-- <limit lower="-3.14" upper="3.14" effort="300" velocity="10"/> -->
   </joint>
 
    <link name="hook">
@@ -666,7 +666,7 @@
     </collision>
   </link>
 
-  <joint name="wrist_to_gripper_base" type="revolute">
+  <joint name="wrist_to_gripper_base" type="fixed">
     <parent link="wrist"/>
     <child link="gripper_base"/>
     <origin rpy="0 -0 0" xyz="0.02 0 -0.01"/>

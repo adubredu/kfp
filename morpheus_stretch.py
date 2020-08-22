@@ -15,9 +15,9 @@ import utils as ut
 
 clid = p.connect(p.GUI)
 p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
-p.setGravity(0, 0, 0)
+p.setGravity(0, 0, -9.81)
 p.setAdditionalSearchPath('models')
-# p.setRealTimeSimulation(1)
+p.setRealTimeSimulation(1)
 
 
 
@@ -32,8 +32,11 @@ class Morpheus:
 		point = np.array(ut.get_point(self.kitchen)) - np.array([0, 0, z])
 		ut.set_point(self.floor, point)
 		# time.sleep(5)
+		basepose = ((-2.10468710096393, 0.9231578949558297, -1.477370604548337), (-0.0008581358239357019, -0.0005171708162984435, -0.7119393288519943, 0.702240263849223))
 		with ut.HideOutput(enable=True):
-			self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", [1.0,6,-1.45], p.getQuaternionFromEuler((0,0,1.57)))
+			# self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", [1.0,6,-1.45], p.getQuaternionFromEuler((0,0,1.57)))
+			self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", basepose[0], basepose[1])
+
 
 		self.setup_environment()
 
@@ -169,12 +172,14 @@ class Morpheus:
 	def close_gripper(self):
 		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=0.06, force=3000)
 		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=-0.06, force=3000)
+		# self.grasped = self.grasp_item(self.sprite.id)
 		p.stepSimulation()
 
 
 	def open_gripper(self):
 		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=0)
 		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=0)
+		# self.release_item(self.grasped)
 		p.stepSimulation()
 
 	def set_gripper_to(self,value):
@@ -604,11 +609,11 @@ class Morpheus:
 			if ord('p') in  keys:
 				self.twist_gripper_horizontal()
 
-			if ord('h') in  keys:
-				self.grasped = self.grasp_item(self.sprite.id)
+			# if ord('h') in  keys:
+			# 	self.grasped = self.grasp_item(self.sprite.id)
 
-			if ord('b') in  keys:
-				self.release_item(self.grasped)
+			# if ord('b') in  keys:
+			# 	self.release_item(self.grasped)
 
 
 			if ord('z') in  keys:
