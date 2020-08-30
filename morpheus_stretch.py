@@ -109,6 +109,7 @@ class Morpheus:
 		self.arm_teleop()
 		# for i in range(p.getNumJoints(self.morph)):
 		# 	print(p.getJointInfo(self.morph,i))
+		# 	print('')
 		# self.move_arm_to_cabinet_level()
 		# self.run_gripper_test()
 		# self.set_gripper_to(0.02)

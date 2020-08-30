@@ -83,15 +83,16 @@ class Morpheus:
 						'indigo_drawer_bottom':58,
 						'baker':14
 		}
-		self.run_pick_food_from_stove_test()
+		# self.run_pick_food_from_stove_test()
 		# self.rest_arm()
 		# self.run_open_left_top_drawer_test()
 		# self.run_open_bottom_drawer_test()
 		# self.run_open_top_drawer_test()
 		# self.run_close_top_drawer_test()
 		self.arm_teleop()
-		# for i in range(p.getNumJoints(self.panda)):
-		# 	print(p.getJointInfo(self.panda,i))
+		for i in range(p.getNumJoints(self.panda)):
+			print(p.getJointInfo(self.panda,i))
+			print('')
 		# self.move_arm_to_cabinet_level()
 		# self.run_gripper_test()
 		# self.set_gripper_to(0.02)
@@ -101,7 +102,7 @@ class Morpheus:
 		# self.run_draw_circle_test()
 		# self.move_base_to_position(self.at_cabinet_pose[0][0],self.at_cabinet_pose[0][1],
 		# 					1.57)
-		time.sleep(30)
+		time.sleep(3000)
 
 
 
@@ -534,16 +535,16 @@ class Morpheus:
 				currjoint = p.getJointState(self.panda, ji)[0]
 				self.control_joint(ji, currjoint+0.01, 
 								joint_limits[ji][0],joint_limits[ji][1])
-			if ord(';') in keys:
-				ji = 7
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint-0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
-			if ord('/') in keys:
-				ji = 7
-				currjoint = p.getJointState(self.panda, ji)[0]
-				self.control_joint(ji, currjoint+0.01, 
-								joint_limits[ji][0],joint_limits[ji][1])
+			# if ord(';') in keys:
+			# 	ji = 7
+			# 	currjoint = p.getJointState(self.panda, ji)[0]
+			# 	self.control_joint(ji, currjoint-0.01, 
+			# 					joint_limits[ji][0],joint_limits[ji][1])
+			# if ord('/') in keys:
+			# 	ji = 7
+			# 	currjoint = p.getJointState(self.panda, ji)[0]
+			# 	self.control_joint(ji, currjoint+0.01, 
+			# 					joint_limits[ji][0],joint_limits[ji][1])
 			if ord('0') in keys:
 				self.move_arm_to_pose(self.top_drawer_handle_close_pose[0], 
 					self.top_drawer_handle_close_pose[1])
@@ -578,13 +579,13 @@ class Morpheus:
 			joint_angles=[]
 			for i in joint_limits:
 				joint_angles.append(p.getJointState(self.panda,i)[0])
-			print('JOINT ANGLES ARE: ',joint_angles)
-			pose = p.getBasePositionAndOrientation(self.husky)
-			print('BASE POSE AND ORIENTATION: ',pose)
-			eepose = p.getLinkState(self.panda, self.panda_end_effector)
-			print('WORLD END-EFFECTOR POSE: ',eepose[0],eepose[1])
-			print('&'*30)
-			print(' ')
+			# print('JOINT ANGLES ARE: ',joint_angles)
+			# pose = p.getBasePositionAndOrientation(self.husky)
+			# print('BASE POSE AND ORIENTATION: ',pose)
+			# eepose = p.getLinkState(self.panda, self.panda_end_effector)
+			# print('WORLD END-EFFECTOR POSE: ',eepose[0],eepose[1])
+			# print('&'*30)
+			# print(' ')
 
 	def run_pick_food_from_stove_test(self):
 		self.open_gripper()
