@@ -1,0 +1,1050 @@
+import pybullet as p
+import time
+import numpy as np
+import math
+from datetime import datetime
+from datetime import datetime
+import pybullet_data
+import sys
+import os
+from grocery_items import Grocery_item
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
+
+import utils as ut
+
+clid = p.connect(p.GUI)
+p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
+p.setGravity(0, 0, -9.81)
+p.setAdditionalSearchPath('models')
+p.setRealTimeSimulation(1)
+
+
+
+class Morpheus:
+	def __init__(self):
+		kitchen_path = 'kitchen_description/urdf/kitchen_part_right_gen_convex.urdf'
+		with ut.HideOutput(enable=True):
+			self.floor = p.loadURDF('floor/floor.urdf',useFixedBase=True)
+			self.kitchen = p.loadURDF(kitchen_path,[-3,0,0],useFixedBase=True)
+
+		z = ut.stable_z(self.kitchen, self.floor) - ut.get_point(self.floor)[2]
+		point = np.array(ut.get_point(self.kitchen)) - np.array([0, 0, z])
+		ut.set_point(self.floor, point)
+		# time.sleep(5)
+		basepose = ((-2.10468710096393, 0.9231578949558297, -1.477370604548337), (-0.0008581358239357019, -0.0005171708162984435, -0.7119393288519943, 0.702240263849223))
+		with ut.HideOutput(enable=True):
+			# self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", [1.0,6,-1.45], p.getQuaternionFromEuler((0,0,1.57)))
+			self.morph = p.loadURDF("morpheus_description/morph_with_horizontal_gripper.urdf", basepose[0], basepose[1])
+
+
+		self.setup_environment()
+
+		self.morph_end_effector = 11
+		self.morph_fingers_index = [16,17]
+		# self.morph_fingers_limits= [0.0, 0.04]
+		self.num_joints = 7
+		self.wheels = [2, 3, 4, 5]
+		self.linear_speed = 3.0
+		self.turn_speed = 0.5
+
+		self.lspeed = 0.001
+		self.tspeed = 0.001
+		# self.move_arm_to_attack_pose()
+
+		self.door_indices = {
+						'chewie_door_right':18,
+						'chewie_door_left':22,
+						'dagger_door_left':27,
+						'dagger_door_right':31,
+						'hitman_drawer_top':37,
+						'hitman_drawer_bottom':40,
+						'indigo_door_right':48,
+						'indigo_door_left':53,
+						'indigo_drawer_top':56,
+						'indigo_drawer_bottom':58,
+						'baker':14
+		}
+
+		
+		self.arm_teleop()
+		time.sleep(60)
+
+	def setup_environment(self):
+		p.changeDynamics(self.morph, 16, lateralFriction=10000)
+		p.changeDynamics(self.morph, 17, lateralFriction=10000)
+		p.changeDynamics(self.morph, 18, lateralFriction=10000)
+
+		tableId = p.loadURDF("objects/table/table.urdf",[1.6087, -4.4277, -1.477],p.getQuaternionFromEuler([0,0,0]))
+		self.sprite = Grocery_item(urdf_path='objects/can_sprite/sprite.obj',
+			object_name='can_sprite', height=0.17,width=0.08,orr=1.57, urdf=False, p=p, x=-2.9, y=0.65,z=-0.5524)
+		chair = p.loadSDF("objects/chair_1/model.sdf")
+		p.changeDynamics(self.sprite.id,-1,mass=0.1)
+		p.resetBasePositionAndOrientation(chair[0], \
+			[1.52078, -5.408, -1.4783], p.getQuaternionFromEuler([0,0,1.57]))
+
+	def calculate_inverse_kinematics(self, targetPos,targetOr, threshold, maxIter):
+		closeEnough = False
+		iter = 0
+		dist2 = 1e30
+		while (not closeEnough and iter < maxIter):
+			jointPoses = p.calculateInverseKinematics(self.morph, self.morph_end_effector, targetPos,targetOr)
+			# for i in range(self.num_joints):
+			# 	p.resetJointState(self.morph, i, jointPoses[i])
+			ls = p.getLinkState(self.morph, self.morph_end_effector)
+			newPos = ls[4]
+			diff = [targetPos[0] - newPos[0], targetPos[1] - newPos[1], targetPos[2] - newPos[2]]
+			dist2 = (diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2])
+			closeEnough = (dist2 < threshold)
+			iter = iter + 1
+
+		return jointPoses
+
+
+	def move_arm_to_cabinet_level(self):
+		joints = [0,1,2,3,4,5,6]
+		p.setJointMotorControlArray(self.morph, joints, controlMode=p.POSITION_CONTROL,
+									targetPositions=self.cabinet_arm_level)
+		p.stepSimulation()
+
+
+	def close_gripper(self):
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=0.06, force=3000)
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=-0.06, force=3000)
+		# self.grasped = self.grasp_item(self.sprite.id)
+		p.stepSimulation()
+
+
+	def open_gripper(self):
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=0)
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=0)
+		# self.release_item(self.grasped)
+		p.stepSimulation()
+
+	def set_gripper_to(self,value):
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[0],controlMode=p.POSITION_CONTROL,targetPosition=value)
+		p.setJointMotorControl2(self.morph, self.morph_fingers_index[1],controlMode=p.POSITION_CONTROL,targetPosition=value)
+		p.stepSimulation()
+
+	def rest_arm(self):
+		time.sleep(2)
+		joints = [0,1,2,3,4,5,6]
+		for i in range(len(joints)):
+			p.setJointMotorControl2(self.morph, joints[i], controlMode=p.POSITION_CONTROL,
+										targetPosition=self.morph_resting_joints[i],
+										velocityGain=1, positionGain=0.005)
+			# time.sleep(1)
+			p.stepSimulation()
+
+	def create_object(self):
+		position=[-2.9, 0.6,-0.5524]
+		vid = p.createVisualShape(shapeType=p.GEOM_BOX, 
+								   halfExtents=[.025,.025,.025],
+								   rgbaColor=[1.,0.,1.,1])
+		collisionShapeId = p.createCollisionShape(
+								shapeType=p.GEOM_BOX,
+		                        halfExtents=[.025,.025,.025])
+		idd = p.createMultiBody(
+					baseCollisionShapeIndex=collisionShapeId,
+					baseVisualShapeIndex=vid,
+					basePosition=position,
+					# baseOrientation=orientation,
+					baseMass=0.1
+					)
+		return idd
+
+	def move_arm_to_attack_pose(self):
+		time.sleep(2)
+		joints = [0,1,2,3,4,5,6]
+		for i in range(len(joints)):
+			p.setJointMotorControl2(self.morph, joints[i], controlMode=p.POSITION_CONTROL,
+										targetPosition=self.attack_arm_joints[i],
+										# targetPosition=self.cabinet_level_arm_joints[i],
+										velocityGain=1, positionGain=0.005)
+			# time.sleep(1)
+			p.stepSimulation()
+
+	def move_arm_to_pose(self, position, orientation):
+		angles = self.calculate_inverse_kinematics(position, orientation,
+			threshold=0.0001, maxIter=1000)
+		joints=[0,1,2,3,4,5,6]
+		# js = self.left_top_drawer_arm_joints 
+		js = angles[:7]
+		for i in range(len(joints)):
+			p.setJointMotorControl2(self.morph, joints[i], controlMode=p.POSITION_CONTROL,
+									velocityGain=1, positionGain=0.005, targetPosition=js[i])
+			p.stepSimulation()
+
+
+	def orient_base_to_yaw(self, theta, tolerance=0.1, intelligent=True):
+		pose, orientation = p.getBasePositionAndOrientation(self.morph)
+		yaw = p.getEulerFromQuaternion(orientation)[2]
+		wheelVelocities = [0, 0, 0, 0]
+		wheelDeltasTurn = [1, -1, 1, -1]
+		wheelDeltasFwd = [1, 1, 1, 1]
+		print('THETA: ',theta)
+
+		if not intelligent:
+
+			while np.abs(yaw - theta) > tolerance:
+				wheelVelocities = [0, 0, 0, 0]
+				if yaw > theta:
+					#turn clockwise
+					for i in range(len(self.wheels)):
+						wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+
+				else:
+					#turn anti-clockwise
+					for i in range(len(self.wheels)):
+						wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+
+				for i in range(len(self.wheels)):
+					p.setJointMotorControl2(self.morph,
+											self.wheels[i],
+											p.VELOCITY_CONTROL,
+											targetVelocity=wheelVelocities[i],
+											force=1000)
+				time.sleep(1)
+				pose, orientation = p.getBasePositionAndOrientation(self.morph)
+				yaw = p.getEulerFromQuaternion(orientation)[2]
+				print('turning: ',yaw)
+		else:
+			if np.abs(theta) > 1.57 and np.abs(yaw) > 1.57:
+				while np.abs(yaw - theta) > tolerance:
+					wheelVelocities = [0, 0, 0, 0]
+					if yaw < theta and (yaw > 0 and theta > 0):
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					elif yaw > theta and (yaw > 0 and theta > 0):
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+					elif yaw < theta and (yaw < 0 and theta < 0):
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					elif yaw > theta and (yaw > 0 and theta > 0):
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+					elif yaw < theta and (yaw < 0 and theta > 0):
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+					elif yaw > theta and (yaw > 0 and theta < 0):
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+
+					else:
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					for i in range(len(self.wheels)):
+						p.setJointMotorControl2(self.morph,
+												self.wheels[i],
+												p.VELOCITY_CONTROL,
+												targetVelocity=wheelVelocities[i],
+												force=1000)
+					time.sleep(1)
+					pose, orientation = p.getBasePositionAndOrientation(self.morph)
+					yaw = p.getEulerFromQuaternion(orientation)[2]
+					print('turning: ',yaw)
+			elif np.abs(theta) <= 1.57 and np.abs(yaw) <= 1.57:
+				while np.abs(yaw - theta) > tolerance:
+					wheelVelocities = [0, 0, 0, 0]
+					if yaw < theta and (yaw > 0 and theta > 0):
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					elif yaw > theta and (yaw > 0 and theta > 0):
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+					elif yaw < theta and (yaw < 0 and theta < 0):
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					elif yaw > theta and (yaw > 0 and theta > 0):
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+					elif yaw < theta and (yaw < 0 and theta > 0):
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					elif yaw > theta and (yaw > 0 and theta < 0):
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+
+					else:
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+					for i in range(len(self.wheels)):
+						p.setJointMotorControl2(self.morph,
+												self.wheels[i],
+												p.VELOCITY_CONTROL,
+												targetVelocity=wheelVelocities[i],
+												force=1000)
+					time.sleep(1)
+					pose, orientation = p.getBasePositionAndOrientation(self.morph)
+					yaw = p.getEulerFromQuaternion(orientation)[2]
+					print('turning: ',yaw)
+			else:
+				while np.abs(yaw - theta) > tolerance:
+					wheelVelocities = [0, 0, 0, 0]
+					if yaw > theta:
+						#turn clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] + self.turn_speed * wheelDeltasTurn[i]
+
+					else:
+						#turn anti-clockwise
+						for i in range(len(self.wheels)):
+							wheelVelocities[i] = wheelVelocities[i] - self.turn_speed * wheelDeltasTurn[i]
+
+
+					for i in range(len(self.wheels)):
+						p.setJointMotorControl2(self.morph,
+												self.wheels[i],
+												p.VELOCITY_CONTROL,
+												targetVelocity=wheelVelocities[i],
+												force=1000)
+					time.sleep(1)
+					pose, orientation = p.getBasePositionAndOrientation(self.morph)
+					yaw = p.getEulerFromQuaternion(orientation)[2]
+					print('turning: ',yaw)
+
+		print('done yawing')
+		for i in range(len(self.wheels)):
+				p.setJointMotorControl2(self.morph,
+										self.wheels[i],
+										p.VELOCITY_CONTROL,
+										targetVelocity=0.0,
+										force=1000)
+		
+
+
+	def drive_base_for_distance(self, goal_distance, tolerance=0.001):
+		init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		
+		wheelVelocities = [0, 0, 0, 0]
+		wheelDeltasTurn = [1, -1, 1, -1]
+		wheelDeltasFwd = [1, 1, 1, 1]
+
+		dist_covered = 0
+
+		while np.abs(dist_covered - np.abs(goal_distance)) > tolerance:
+			wheelVelocities = [0, 0, 0, 0]
+			if dist_covered < goal_distance:
+				for i in range(len(self.wheels)):
+					wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasFwd[i]
+			else:
+				for i in range(len(self.wheels)):
+					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasFwd[i]
+
+			
+			for i in range(len(self.wheels)):
+				p.setJointMotorControl2(self.morph,
+										self.wheels[i],
+										p.VELOCITY_CONTROL,
+										targetVelocity=wheelVelocities[i],
+										force=1000)
+
+			pose, orientation = p.getBasePositionAndOrientation(self.morph)
+			dist_covered = np.sqrt((init_pos[0]-pose[0])**2 + (init_pos[1]-pose[1])**2)
+			print('linear: ',dist_covered)
+		print('done translating')
+		for i in range(len(self.wheels)):
+				p.setJointMotorControl2(self.morph,
+										self.wheels[i],
+										p.VELOCITY_CONTROL,
+										targetVelocity=0.0,
+										force=1000)
+
+
+	def move_base_to_position(self, gx, gy, theta):
+		init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		if np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2) < 0.2:
+			return False
+		direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
+		self.orient_base_to_yaw(direction)
+		time.sleep(1)
+		distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		self.drive_base_for_distance(distance)
+		time.sleep(1)
+		self.orient_base_to_yaw(theta)
+
+		# init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		# distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		# self.drive_base_for_distance(distance)
+
+
+	def move_lateral_to(self,y):
+		pos, orientation = p.getBasePositionAndOrientation(self.morph) 
+		while np.abs(pos[1]-y) > 0.05:
+			if pos[1] - y > 0.05:
+				self.drive_base_for_distance(-0.01)
+			elif pos[1] - y < -0.05:
+				self.drive_base_for_distance(0.01)
+			pos, orientation = p.getBasePositionAndOrientation(self.morph) 
+
+
+	def open_conf(self, joint):
+		joint_name = ut.get_joint_name(self.kitchen, joint)
+		if 'left' in joint_name:
+			open_position = ut.get_min_limit(self.kitchen, joint)
+		else:
+			open_position = ut.get_max_limit(self.kitchen, joint)
+		if joint_name in ut.CABINET_JOINTS:
+			return ut.CABINET_OPEN_ANGLE * open_position / abs(open_position)
+		if joint_name in ut.DRAWER_JOINTS:
+			return ut.DRAWER_OPEN_FRACTION * open_position
+		return open_position
+
+
+	def closed_conf(self, joint):
+		lower, upper = ut.get_joint_limits(self.kitchen, joint)
+		if 'drawer' in ut.get_joint_name(self.kitchen, joint):
+			fraction = 0.9
+			return fraction*lower + (1-fraction)*upper
+		if 'left' in ut.get_joint_name(self.kitchen, joint):
+			return upper
+		return lower
+
+
+	def open_door(self, name):
+		index = self.door_indices[name]
+		ut.set_joint_position(self.kitchen, index, self.open_conf(index))
+
+
+	def close_door(self, name):
+		index = self.door_indices[name]
+		ut.set_joint_position(self.kitchen, index, self.closed_conf(index))
+
+	def stow_gripper(self):
+		self.control_joint(14, -3, -3.14,3.14)
+
+	def ready_gripper(self):
+		self.control_joint(14, 0, -3.14,3.14)
+
+	def twist_gripper_vertical(self):
+		self.control_joint(15, 1.57, -3.14,3.14)
+
+	def twist_gripper_horizontal(self):
+		self.control_joint(15, 0, -3.14,3.14)
+
+	def control_joint(self, joint, value, minn, maxx):
+		if value < minn:
+			value = minn
+		if value > maxx:
+			value = maxx
+		p.setJointMotorControl2(self.morph, joint,
+					controlMode=p.POSITION_CONTROL,targetPosition=value,
+					force=3000)
+		p.stepSimulation()
+
+	def raise_arm_to(self, z):
+		pass
+
+	def extend_arm_to(self,dist):
+		min_limit = 0; max_limit=0.25
+		joints_from_ee = [13,12,11,10]
+		if dist < 0.3:
+			return False
+		if dist <= 0.55:
+			self.control_joint(joints_from_ee[0],
+				(dist-0.3),min_limit, max_limit)
+			self.control_joint(joints_from_ee[1],
+				0,min_limit, max_limit)
+			self.control_joint(joints_from_ee[2],
+				0,min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				0,min_limit, max_limit)
+
+		elif dist > 0.55 and dist <= 0.8:
+			self.control_joint(joints_from_ee[0],
+				0.25,min_limit, max_limit)
+			self.control_joint(joints_from_ee[1],
+				(dist-0.55),min_limit, max_limit)
+			self.control_joint(joints_from_ee[2],
+				0,min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				0,min_limit, max_limit)
+
+		elif dist > 0.8 and dist <= 1.05:
+			self.control_joint(joints_from_ee[0],
+				0.25,min_limit, max_limit)
+			self.control_joint(joints_from_ee[1],
+				0.25,min_limit, max_limit)
+			self.control_joint(joints_from_ee[2],
+				(dist-0.8),min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				0,min_limit, max_limit)
+
+		elif dist > 1.05 and dist <= 1.3:
+			self.control_joint(joints_from_ee[0],
+				0.25,min_limit, max_limit)
+			self.control_joint(joints_from_ee[1],
+				0.25,min_limit, max_limit)
+			self.control_joint(joints_from_ee[2],
+				0.25,min_limit, max_limit)
+			self.control_joint(joints_from_ee[3],
+				(dist-1.05),min_limit, max_limit)
+		elif dist > 1.3:
+			return False
+		return True
+
+
+	def arm_teleop(self):
+		joint_limits={
+						0: (-2.9671, 2.9671),
+						1: (-1.8326, 1.8326),
+						2: (-2.9671, 2.9671),
+						3: (-3.1416, 0.0),
+						4: (-2.9671, 2.9671),
+						5: (-0.0873, 3.8223),
+						6: (-2.9671, 2.9671),
+						7: (0.0, -1.0,)
+					}
+		wheels = [2, 3, 4, 5]
+		wheelVelocities = [0, 0, 0, 0]
+		wheelDeltasTurn = [1, -1, 1, -1]
+		wheelDeltasFwd = [1, 1, 1, 1]
+		dist = 0.3
+		height = 0.0
+		while 1:
+			wheelVelocities = [0, 0, 0, 0]
+			keys = p.getKeyboardEvents()
+			if ord('u') in keys:
+				ji = 9
+				height = p.getJointState(self.morph, ji)[0]
+				if height < 1.3:
+					height += 0.001
+				self.control_joint(ji, height, 0.0, 1.3)
+
+			if ord('i') in keys:
+				ji = 9
+				height = p.getJointState(self.morph, ji)[0]
+				if height > 0.0:
+					height -= 0.001
+				self.control_joint(ji, height, 0.0,1.3)
+
+			if ord('j') in keys:
+				if dist < 1.4:
+					dist += 0.001
+				self.extend_arm_to(dist)
+
+			if ord('k') in keys:
+				if dist > 0.3:
+					dist -= 0.001
+				self.extend_arm_to(dist)
+
+			if ord('n') in  keys:
+				ji = 14
+				currjoint = p.getJointState(self.morph, ji)[0]
+				self.control_joint(ji, currjoint+0.01,-3.14,3.14)
+
+			if ord('m') in  keys:
+				ji = 14
+				currjoint = p.getJointState(self.morph, ji)[0]
+				self.control_joint(ji, currjoint-0.01,-3.14,3.14)
+
+			if ord('o') in  keys:
+				self.twist_gripper_vertical()
+
+			if ord('p') in  keys:
+				self.twist_gripper_horizontal()
+
+			# if ord('h') in  keys:
+			# 	self.grasped = self.grasp_item(self.sprite.id)
+
+			# if ord('b') in  keys:
+			# 	self.release_item(self.grasped)
+
+
+			if ord('z') in  keys:
+				self.open_door('indigo_drawer_top')
+
+			if ord('x') in  keys:
+				self.close_door('indigo_drawer_top')
+
+			if ord('0') in keys:
+				self.move_arm_to_pose(self.top_drawer_handle_close_pose[0], 
+					self.top_drawer_handle_close_pose[1])
+
+			if ord('1') in keys:
+				self.close_gripper()
+
+			if ord('2') in keys:
+				self.open_gripper()
+
+			if ord('[') in keys:
+				self.run_pick_food_from_stove_test()
+
+			if ord(']') in keys:
+				self.run_open_top_drawer_test()
+				time.sleep(6)
+				self.run_close_top_drawer_test()
+			'''	
+			if p.B3G_LEFT_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasTurn[i]
+			if p.B3G_RIGHT_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasTurn[i]
+			if p.B3G_UP_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] + self.linear_speed * wheelDeltasFwd[i]
+			if p.B3G_DOWN_ARROW in keys:
+				for i in range(len(wheels)):
+					wheelVelocities[i] = wheelVelocities[i] - self.linear_speed * wheelDeltasFwd[i]
+
+			for i in range(len(wheels)):
+				p.setJointMotorControl2(self.morph,
+									wheels[i],
+									p.VELOCITY_CONTROL,
+									targetVelocity=wheelVelocities[i],
+									force=1000)
+			'''
+
+			# p.stepSimulation()
+			if p.B3G_UP_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				# del_pos = [self.lspeed,0,0]
+				# del_orr=p.getQuaternionFromEuler((0,0,0))
+				# inv = p.invertTransform(pos,orr)
+				# transform = p.multiplyTransforms(inv[0], inv[1], del_pos, del_orr)
+				euorr = p.getEulerFromQuaternion(orr)
+				x = pos[0] - (self.lspeed*np.cos(euorr[2]))
+				y = pos[1] - (self.lspeed*np.sin(euorr[2]))
+				transform = ((x,y,pos[2]), orr)
+				p.resetBasePositionAndOrientation(self.morph, transform[0], transform[1])
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+				print(transform)
+				print('###')
+
+			if p.B3G_DOWN_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				euorr = p.getEulerFromQuaternion(orr)
+				x = pos[0] + (self.lspeed*np.cos(euorr[2]))
+				y = pos[1] + (self.lspeed*np.sin(euorr[2]))
+				transform = ((x,y,pos[2]), orr)
+				p.resetBasePositionAndOrientation(self.morph, transform[0], transform[1])
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+				print(transform)
+				print('###')
+
+			if p.B3G_RIGHT_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				euorr = list(p.getEulerFromQuaternion(orr))
+				euorr[2] -= self.tspeed
+				p.resetBasePositionAndOrientation(self.morph, pos, p.getQuaternionFromEuler(euorr))
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+
+			if p.B3G_LEFT_ARROW in keys:
+				pos, orr = p.getBasePositionAndOrientation(self.morph)
+				euorr = list(p.getEulerFromQuaternion(orr))
+				euorr[2] += self.tspeed
+				p.resetBasePositionAndOrientation(self.morph, pos, p.getQuaternionFromEuler(euorr))
+				p.stepSimulation()
+				print(pos, orr)
+				print('**')
+			
+			# pose = p.getBasePositionAndOrientation(self.morph)
+			# print('BASE POSE AND ORIENTATION: ',pose)
+			# print('ARM HEIGHT: ',height)
+			# print('ARM LENGTH: ',dist)
+			# print('&'*30)
+			# print(' ')
+
+
+	def drive_base(self, linear_speed, angular_speed):
+		wheels = [2, 3, 4, 5]
+		wheelVelocities = [0, 0, 0, 0]
+		width = 0.57
+		scale = 0.5
+
+		left_motors = (linear_speed + angular_speed*(width/2))*scale
+		right_motors = (linear_speed - angular_speed*(width/2))*scale
+
+		wheelVelocities[0] = left_motors; wheelVelocities[2] = left_motors
+		wheelVelocities[1] = right_motors; wheelVelocities[3] = right_motors
+
+		for i in range(len(wheels)):
+			p.setJointMotorControl2(self.morph,
+								wheels[i],
+								p.VELOCITY_CONTROL,
+								targetVelocity=wheelVelocities[i],
+								force=1000)
+		# time.sleep(0.01)
+
+
+	def teleop_base(self):
+		while  True:
+			keys = p.getKeyboardEvents()
+			if p.B3G_LEFT_ARROW in keys:
+				self.drive_base(0.,-6.)
+			elif p.B3G_RIGHT_ARROW in keys:
+				self.drive_base(0.,6.)
+			elif p.B3G_UP_ARROW in keys:
+				self.drive_base(3.,0.)
+			elif p.B3G_DOWN_ARROW in keys:
+				self.drive_base(-3.,0.)
+			else:
+				self.drive_base(0.,0.)
+
+
+	def at_pose(self,gx,gy,theta,threshold=0.08):
+		curr_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		curr_theta = p.getEulerFromQuaternion(orientation)[2]
+		if (np.abs(curr_pos[0] - gx) < threshold) and \
+			(np.abs(curr_pos[1] -gy) < threshold) and \
+			(np.abs(curr_theta - theta) < threshold):
+			return True 
+		else:
+			return False
+
+
+	def new_move_base_to_position(self, gx, gy, theta):
+		# init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+		# if np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2) < 0.2:
+		# 	return False
+		# direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
+		# self.orient_base_to_yaw(direction)
+		# time.sleep(1)
+		# distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+		# self.drive_base_for_distance(distance)
+		# time.sleep(1)
+		# self.orient_base_to_yaw(theta)
+
+
+		while not self.at_pose(gx, gy, theta):
+			init_pos, orientation = p.getBasePositionAndOrientation(self.morph)
+			direction = np.arctan2((gy-init_pos[1]), (gx-init_pos[0]))
+			distance = np.sqrt((gx-init_pos[0])**2 + (gy-init_pos[1])**2)
+			if gx < init_pos[0]:# or gy > init_pos[1]:
+				distance *=-1
+			if np.abs(distance) <= 0.05:
+				direction = theta 
+				distance = 0
+			print("linear: %f angular: %f theta: %f"%(distance, direction, theta))
+			self.drive_base(0,-direction)
+			self.drive_base(distance,0)
+		self.drive_base(0,0)
+		print("I'm there")
+
+
+
+
+
+
+
+	def run_pick_food_from_stove_test(self):
+		p.resetBasePositionAndOrientation(self.morph,[-0.5,6,-1.45], p.getQuaternionFromEuler((0,0,0)))
+		self.stow_gripper()
+		basepose = ((-2.10468710096393, 0.9231578949558297, -1.477370604548337), (-0.0008581358239357019, -0.0005171708162984435, -0.7119393288519943, 0.702240263849223))
+		theta = p.getEulerFromQuaternion(basepose[1])[2]
+		self.move_base_to_position(basepose[0][0], basepose[0][1],theta)
+		time.sleep(1)
+
+		height = 0.406
+		length = 0.6
+		self.control_joint(9, height, 0.0, 1.3)
+		time.sleep(3)
+		self.open_gripper()
+		time.sleep(3)
+		self.ready_gripper()
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.close_gripper()
+		time.sleep(3)
+		self.control_joint(9, height+0.2, 0.0, 1.3)
+		p.resetJointState(self.morph, 15, 0)
+		self.extend_arm_to(length-0.4)
+		time.sleep(3)
+
+		base_pose =  ((-1.4232540350850436, 1.154662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+		theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		self.move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		time.sleep(2)
+
+		self.open_gripper()
+		# destpose = ((1.6820733918269681, -3.2852051873822616, -1.4771831169755152), (-6.802841669425193e-05, -0.0008524114072207692, -0.030760320506220924, 0.9995264235873317))
+		# theta = p.getEulerFromQuaternion(destpose[1])[2]
+		# self.move_base_to_position(destpose[0][0], destpose[0][1],theta)
+		# time.sleep(1)
+
+
+	def put_food_on_table(self):
+		height = 0.3
+		length = 1.1
+		self.control_joint(9, height, 0.0, 1.3)
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.open_gripper()
+		time.sleep(3)
+		self.control_joint(9, height+0.4, 0.0, 1.3)
+		time.sleep(3)
+		self.extend_arm_to(0.4)
+		time.sleep(3)
+		self.stow_gripper()
+		time.sleep(3)
+		
+
+	def run_open_top_drawer_test(self):
+		p.resetBasePositionAndOrientation(self.morph,[1.0,6,-1.45], p.getQuaternionFromEuler((0,0,0)))
+
+		vertical_index = 9
+		handle_height = 0.233
+		length = 1.04
+		retract_to = 0.3
+		base_pose =  ((-1.4232540350850436, 1.164662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		self.new_move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		time.sleep(2)
+
+
+		self.twist_gripper_vertical()
+		time.sleep(3)
+		self.control_joint(vertical_index, handle_height, 0.0,1.3)
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.close_gripper()
+		time.sleep(3)
+		self.extend_arm_to(retract_to)
+		time.sleep(3)
+		self.open_gripper()
+
+		
+		time.sleep(3)
+		# self.rest_arm()
+		p.stepSimulation()
+
+
+	def run_close_top_drawer_test(self):
+		vertical_index = 9
+		handle_height = 0.233
+		length = 1.3
+		turn_index = 14
+		retract_to = 0.3
+		base_pose =  ((-1.4232540350850436, 1.154662721055332, -1.4773350749773084), (-0.0006543263746728018, -0.0004675062250675347, -0.7353723939385072, 0.677662744680622))
+
+		self.twist_gripper_horizontal()
+		time.sleep(3)
+		self.extend_arm_to(retract_to)
+		time.sleep(3)
+		self.control_joint(turn_index, 3.14,-3.14,3.14)
+		theta = p.getEulerFromQuaternion(base_pose[1])[2]
+		self.move_base_to_position(base_pose[0][0], base_pose[0][1],theta)
+		time.sleep(3)
+		self.extend_arm_to(length)
+		time.sleep(3)
+		self.extend_arm_to(retract_to)
+		time.sleep(3)
+
+
+
+		p.stepSimulation()
+
+	def run_open_bottom_drawer_test(self):
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(self.morph_cabinet_base_pose[1])[2]
+		self.move_base_to_position(self.morph_cabinet_base_pose[0][0],
+			self.morph_cabinet_base_pose[0][1],theta)
+		time.sleep(1)
+		# self.drive_base_for_distance(-0.2)
+		self.move_arm_to_pose(self.bottom_drawer_handle_close_pose[0],
+								self.bottom_drawer_handle_close_pose[1])
+		time.sleep(10)
+		self.drive_base_for_distance(0.055)
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		time.sleep(1)
+		self.open_gripper()
+		time.sleep(1)
+		# self.rest_arm()
+		p.stepSimulation()
+
+	def run_close_bottom_drawer_test(self):
+		self.close_gripper()
+		self.move_arm_to_pose(self.bottom_drawer_handle_close_pose[0],
+								self.bottom_drawer_handle_close_pose[1])
+		time.sleep(3)
+		theta = p.getEulerFromQuaternion(self.morph_cabinet_base_pose[1])[2]
+		self.move_base_to_position(self.morph_cabinet_base_pose[0][0]-0.1,
+			self.morph_cabinet_base_pose[0][1],theta)
+		
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		self.open_gripper()
+		p.stepSimulation()
+
+	def run_open_left_top_drawer_test(self):
+		self.open_gripper()
+		theta = p.getEulerFromQuaternion(self.left_top_drawer_base_pose[1])[2]
+		self.move_base_to_position(self.left_top_drawer_base_pose[0][0],
+			self.left_top_drawer_base_pose[0][1],theta)
+		time.sleep(1)
+		self.move_arm_to_pose(self.left_top_drawer_handle_pose[0],
+								self.left_top_drawer_handle_pose[1])
+		time.sleep(10)
+		self.drive_base_for_distance(0.055)
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.drive_base_for_distance(-0.5)
+		time.sleep(1)
+		self.open_gripper()
+		time.sleep(1)
+		# self.rest_arm()
+		p.stepSimulation()
+
+
+
+
+	def run_open_doors_test(self):
+		for key in self.door_indices:
+			self.open_door(key)
+		time.sleep(5)
+
+		for key in self.door_indices:
+			self.close_door(key)
+		time.sleep(30)
+
+
+	def run_gripper_test(self):
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+		time.sleep(5)
+		self.open_gripper()
+		time.sleep(5)
+		self.close_gripper()
+
+	def run_draw_circle_test(self):
+		t = 0.
+		prevPose = [0, 0, 0]
+		prevPose1 = [0, 0, 0]
+		hasPrevPose = 0
+		useNullSpace = 0
+
+		useOrientation = 0
+		useSimulation = 0
+		useRealTimeSimulation = 1
+		p.setRealTimeSimulation(useRealTimeSimulation)
+		trailDuration = 15
+		basepos = [0, 0, 0]
+		ang = 0
+		ang = 0
+
+		wheels = [2, 3, 4, 5]
+		wheelVelocities = [0, 0, 0, 0]
+		wheelDeltasTurn = [1, -1, 1, -1]
+		wheelDeltasFwd = [1, 1, 1, 1]
+		time.sleep(5)
+
+		while 1:
+			keys = p.getKeyboardEvents()
+			shift = 0.01
+			wheelVelocities = [0, 0, 0, 0]
+			self.speed = 1.0
+			for k in keys:
+				if p.B3G_LEFT_ARROW in keys:
+					for i in range(len(wheels)):
+						wheelVelocities[i] = wheelVelocities[i] - self.speed * wheelDeltasTurn[i]
+				if p.B3G_RIGHT_ARROW in keys:
+					for i in range(len(wheels)):
+						wheelVelocities[i] = wheelVelocities[i] + self.speed * wheelDeltasTurn[i]
+				if p.B3G_UP_ARROW in keys:
+					for i in range(len(wheels)):
+						wheelVelocities[i] = wheelVelocities[i] + self.speed * wheelDeltasFwd[i]
+				if p.B3G_DOWN_ARROW in keys:
+					for i in range(len(wheels)):
+						wheelVelocities[i] = wheelVelocities[i] - self.speed * wheelDeltasFwd[i]
+
+			baseorn = p.getQuaternionFromEuler([0, 0, ang])
+			for i in range(len(wheels)):
+				p.setJointMotorControl2(self.morph,
+									wheels[i],
+									p.VELOCITY_CONTROL,
+									targetVelocity=wheelVelocities[i],
+									force=1000)
+
+
+			if (useRealTimeSimulation):
+				t = time.time()
+			else:
+				t = t + 0.001
+
+			pos = [0.2 * math.cos(t), 0, 0. + 0.2 * math.sin(t) + 0.]
+			orn = p.getQuaternionFromEuler([0, -math.pi, 0])
+			threshold = 0.001
+			maxIter = 100
+			# jointPoses = self.calculate_inverse_kinematics(pos, threshold, maxIter)
+
+			# for i in range(self.num_joints):
+			# 	p.resetJointState(self.morph, i, jointPoses[i])
+			# ls = p.getLinkState(self.morph, self.morph_end_effector)
+			# if (hasPrevPose):
+			# 	p.addUserDebugLine(prevPose, pos, [0, 0, 0.3], 1, trailDuration)
+			# 	p.addUserDebugLine(prevPose1, ls[4], [1, 0, 0], 1, trailDuration)
+			# prevPose = pos
+			# prevPose1 = ls[4]
+			# hasPrevPose = 1
+			print(p.getBasePositionAndOrientation(self.morph))
+			# self.orient_base_to_yaw(1)
+
+
+	def run_move_square_test(self):
+		self.orient_base_to_yaw(1.57)
+		time.sleep(2)
+		self.drive_base_for_distance(1)
+		time.sleep(2)
+		self.orient_base_to_yaw(0)
+		time.sleep(2)
+		self.drive_base_for_distance(1)
+		time.sleep(2)
+		self.orient_base_to_yaw(-1.57)
+		time.sleep(2)
+		self.drive_base_for_distance(1)
+		time.sleep(2)
+		self.orient_base_to_yaw(3.14)
+		time.sleep(2)
+		self.drive_base_for_distance(1)
+		time.sleep(2)
+		self.orient_base_to_yaw(1.57)
+		time.sleep(2)
+		time.sleep(15)
+
+
+if __name__ == '__main__':
+	m = Morpheus()
